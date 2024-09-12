@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { type ParsedIndicators } from "../utils";
+    import { type ParsedIndicators } from "./sidebarSvelte.ts";
     
     import Item from "./Item.svelte";
 	import Button from "./Button.svelte";

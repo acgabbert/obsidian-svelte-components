@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ParsedIndicators } from "@acgabbert/obsidian-utils";
+	import type { ParsedIndicators } from "./sidebarSvelte.ts";
     import IocList from "./IocList.svelte";
     //export let iocList: string[];
     export let indicators: ParsedIndicators[];
