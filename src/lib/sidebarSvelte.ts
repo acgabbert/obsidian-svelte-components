@@ -1,4 +1,4 @@
-import { ItemView, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "./Sidebar.svelte";
 import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
