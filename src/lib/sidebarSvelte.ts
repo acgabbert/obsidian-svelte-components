@@ -1,14 +1,8 @@
 import { ItemView, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "./Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
-
-export interface ParsedIndicators {
-    title: string;
-    items: string[];
-    sites: searchSite[] | undefined;
-}
 
 export class SvelteSidebar extends ItemView {
     sidebar: Sidebar | undefined;

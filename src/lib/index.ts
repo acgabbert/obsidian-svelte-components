@@ -1,6 +1,7 @@
-// Reexport your entry components here
-export * from "./Button.svelte";
-export * from "./IocList.svelte";
-export * from "./Item.svelte";
-export * from "./Sidebar.svelte";
+import Button from "./Button.svelte";
+import IocList from "./IocList.svelte";
+import Item from "./Item.svelte";
+import Sidebar from "./Sidebar.svelte";
+
 export * from "./sidebarSvelte.js";
+export { Button, IocList, Item, Sidebar };
