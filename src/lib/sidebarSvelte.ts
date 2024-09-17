@@ -120,12 +120,10 @@ export class SvelteSidebar extends ItemView {
     }
 
     private refangIocs() {
-        this.iocs?.forEach((iocList) => {
-            iocList.items.map((x) => {
-                refangIoc(x);
-                x.toLowerCase();
-            });
+        this.iocs?.forEach((iocList, index, array) => {
+            iocList.items = iocList.items.map((x) => refangIoc(x));
             iocList.items = removeArrayDuplicates(iocList.items);
+            array[index] = iocList;
         })
     }
 
