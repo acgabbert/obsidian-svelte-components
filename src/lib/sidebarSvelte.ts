@@ -73,7 +73,6 @@ export class SvelteSidebar extends ItemView {
 
     async getMatches(file: TFile) {
         if (!this.plugin) return;
-        console.log(`checking matches on ${file.basename}`)
         const fileContent = await this.plugin.app.vault.cachedRead(file);
         this.iocs = [];
         const ips: ParsedIndicators = {
