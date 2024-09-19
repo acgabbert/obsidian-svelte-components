@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-svelte-components",
-	"version": "0.2.6",
+	"version": "0.2.7",
 	"description": "Svelte components for Obsidian plugin development.",
 	"scripts": {
 		"dev": "vite dev",
