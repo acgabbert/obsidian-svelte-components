@@ -97,6 +97,7 @@ export class SvelteSidebar extends ItemView {
             items: [],
             sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
         }
+        this.refangIocs();
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
         if (this.splitLocalIp) {
@@ -114,7 +115,6 @@ export class SvelteSidebar extends ItemView {
         if (this.splitLocalIp) this.iocs.push(privateIps);
         this.iocs.push(domains);
         this.iocs.push(hashes);
-        this.refangIocs();
         this.processExclusions();
     }
 
