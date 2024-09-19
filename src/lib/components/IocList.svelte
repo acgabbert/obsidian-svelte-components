@@ -6,6 +6,8 @@
 
     export let indicatorList: ParsedIndicators;
     let multisearchLinks = new Map<string, string>();
+    let open = true;
+    if (indicatorList.title.contains("Private")) open = false;
     $: indicatorList.sites?.forEach((site) => {
         if (site.multisearch && indicatorList.items.length > 1) {
             indicatorList.items.forEach((item) => {
@@ -24,7 +26,7 @@
     })
 </script>
 
-<details class="sidebar-container tree-item" open>
+<details class="sidebar-container tree-item" {open}>
     <summary class="tree-item-inner">{indicatorList.title}</summary>
     <div class="tree-item-children">
         {#each indicatorList.items as item}
