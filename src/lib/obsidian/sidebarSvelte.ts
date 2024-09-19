@@ -109,12 +109,6 @@ export class SvelteSidebar extends ItemView {
                     privateIps.items.push(item);
                 }
             }
-            ips.items.forEach((item, index, array) => {
-                if(isLocalIpv4(item)) {
-                    array.splice(index, 1);
-                    privateIps.items.push(item);
-                }
-            });
         }
         this.iocs.push(ips);
         this.iocs.push(privateIps);
