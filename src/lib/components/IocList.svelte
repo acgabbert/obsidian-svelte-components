@@ -8,22 +8,25 @@
     let multisearchLinks = new Map<string, string>();
     let open = true;
     if (indicatorList.title.contains("Private")) open = false;
-    $: indicatorList.sites?.forEach((site) => {
-        if (site.multisearch && indicatorList.items.length > 1) {
-            indicatorList.items.forEach((item) => {
-                if (!multisearchLinks.has(site.shortName)) {
-                    multisearchLinks.set(site.shortName, site.site.replace('%s', item));
-                } else {
-                    const url = multisearchLinks.get(site.shortName);
-                    if (!url) {
+    $: {
+        multisearchLinks.clear();
+        indicatorList.sites?.forEach((site) => {
+            if (site.multisearch && indicatorList.items.length > 1) {
+                indicatorList.items.forEach((item) => {
+                    if (!multisearchLinks.has(site.shortName)) {
                         multisearchLinks.set(site.shortName, site.site.replace('%s', item));
-                    } else if (!url.includes(item)) {
-                        multisearchLinks.set(site.shortName, url + site.separator + item);
+                    } else {
+                        const url = multisearchLinks.get(site.shortName);
+                        if (!url) {
+                            multisearchLinks.set(site.shortName, site.site.replace('%s', item));
+                        } else if (!url.includes(item)) {
+                            multisearchLinks.set(site.shortName, url + site.separator + item);
+                        }
                     }
-                }
-            })
-        }
-    })
+                })
+            }
+        });
+    }
 </script>
 
 <details class="sidebar-container tree-item" {open}>
