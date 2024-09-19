@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DropdownOption } from "../obsidian/dropdownLinkModal.ts";
+    import type { DropdownOption } from "$lib/obsidian/dropdownLinkModal.ts";
 
     export let title: string;
     export let options: DropdownOption[];
