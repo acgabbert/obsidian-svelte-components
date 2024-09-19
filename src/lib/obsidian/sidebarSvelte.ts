@@ -101,6 +101,14 @@ export class SvelteSidebar extends ItemView {
             domains.items = validateDomains(domains.items, this.plugin.validTld);
         if (this.splitLocalIp) {
             ips.title = "IPs (Public)";
+            for (let i = 0; i < ips.items.length; i++) {
+                const item = ips.items[i];
+                if(isLocalIpv4(item)) {
+                    ips.items.splice(i, 1);
+                    i--;
+                    privateIps.items.push(item);
+                }
+            }
             ips.items.forEach((item, index, array) => {
                 if(isLocalIpv4(item)) {
                     array.splice(index, 1);
