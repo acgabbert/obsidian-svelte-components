@@ -1,5 +1,5 @@
 import { App, Modal } from "obsidian";
-import ObsidianButton from "../components/DropdownLinkModal.svelte";
+import DropdownSelector from "../components/DropdownSelector.svelte";
 
 export {DropdownLinkModal, type DropdownOption };
 
@@ -9,7 +9,7 @@ interface DropdownOption {
 }
 
 class DropdownLinkModal extends Modal {
-    dropdownSelector: ObsidianButton | undefined;
+    dropdownSelector: DropdownSelector | undefined;
     dropdownOptions: DropdownOption[] | undefined;
     title: string;
 
@@ -23,7 +23,7 @@ class DropdownLinkModal extends Modal {
     onOpen(): void {
         if (!this.dropdownOptions) return;
         console.log(this.dropdownOptions);
-        this.dropdownSelector = new ObsidianButton({
+        this.dropdownSelector = new DropdownSelector({
             target: this.contentEl,
             props: {
                 title: this.title,
