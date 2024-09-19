@@ -9,5 +9,7 @@
 
 <h4>Extracted Indicators</h4>
 {#each indicators as indicatorList}
-    <IocList indicatorList={indicatorList}/>
+    {#if indicatorList.items.length > 0}
+        <IocList indicatorList={indicatorList}/>
+    {/if}
 {/each}

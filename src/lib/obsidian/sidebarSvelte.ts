@@ -111,7 +111,7 @@ export class SvelteSidebar extends ItemView {
             }
         }
         this.iocs.push(ips);
-        if (this.splitLocalIp && privateIps.items.length > 0) this.iocs.push(privateIps);
+        if (this.splitLocalIp) this.iocs.push(privateIps);
         this.iocs.push(domains);
         this.iocs.push(hashes);
         this.refangIocs();
