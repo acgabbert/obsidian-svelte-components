@@ -1,6 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 
@@ -8,6 +8,7 @@ export class SvelteSidebar extends ItemView {
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
+    splitLocalIp: boolean;
 
     ipExclusions: string[] | undefined;
     domainExclusions: string[] | undefined;
@@ -23,6 +24,7 @@ export class SvelteSidebar extends ItemView {
         this.registerOpenFile();
         this.iocs = [];
         this.plugin = plugin;
+        this.splitLocalIp = true;
     }
 
     getViewType(): string {
@@ -90,9 +92,24 @@ export class SvelteSidebar extends ItemView {
             items: extractMatches(fileContent, this.hashRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.hash)
         }
+        const privateIps: ParsedIndicators = {
+            title: "IPs (Private)",
+            items: [],
+            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+        }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
+        if (this.splitLocalIp) {
+            ips.title = "IPs (Public)";
+            ips.items.forEach((item, index, array) => {
+                if(isLocalIpv4(item)) {
+                    array.splice(index, 1);
+                    privateIps.items.push(item);
+                }
+            });
+        }
         this.iocs.push(ips);
+        this.iocs.push(privateIps);
         this.iocs.push(domains);
         this.iocs.push(hashes);
         this.refangIocs();

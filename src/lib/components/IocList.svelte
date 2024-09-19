@@ -38,7 +38,7 @@
                         {#each indicatorList.sites as site}
                             {#if site.multisearch && multisearchLinks.has(site.shortName)}
                                 <Button 
-                                    href={multisearchLinks.get(site.shortName)}
+                                    href={multisearchLinks.get(site.shortName) || ""}
                                     title={`Multisearch ${site.shortName}`}
                                 />
                             {/if}
