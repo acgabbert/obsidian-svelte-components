@@ -1,6 +1,5 @@
 import { App, Modal, Plugin } from "obsidian";
 import SettingCollection from "../components/SettingCollection.svelte";
-import type { CyberPlugin } from "obsidian-cyber-utils";
 
 export { SettingCollectionModal };
 
@@ -12,10 +11,14 @@ export interface BooleanSetting {
 
 class SettingCollectionModal extends Modal {
     settings: BooleanSetting[];
+    plugin: Plugin;
+    onSubmit: ((updatedSettings: BooleanSetting[]) => void) | undefined;
 
-    constructor(app: App, settings: BooleanSetting[]) {
-        super(app);
+    constructor(plugin: Plugin, settings: BooleanSetting[], onSubmit?: (updatedSettings: BooleanSetting[]) => void) {
+        super(plugin.app);
         this.settings = settings;
+        this.plugin = plugin;
+        this.onSubmit = onSubmit;
     }
 
     onOpen(): void {
@@ -27,15 +30,14 @@ class SettingCollectionModal extends Modal {
         });
         checkboxes.$on('change', (event: { detail: BooleanSetting; }) => {
             const item = event.detail;
-            console.log(`Checkbox for setting ${item.displayName} changed to ${item.value}`);
             const index = this.settings.findIndex(setting => setting.key === item.key);
             if (index !== -1) {
-                console.log(`updating index ${index}`)
                 this.settings[index].value = item.value;
             } else {
-                console.log(`Setting with key "${item.key}" not found.`);
+                console.log(`Setting with key "${String(item.key)}" not found.`);
             }
-            console.log(this.settings);
+            // a callback which will save settings for the plugin
+            if (this.onSubmit) this.onSubmit(this.settings);
         });
     }
 }
