@@ -13,7 +13,13 @@ class SettingCollectionModal extends Modal {
     settings: BooleanSetting[];
     plugin: Plugin;
     onSubmit: ((updatedSettings: BooleanSetting[]) => void) | undefined;
-
+    
+    /**
+     * 
+     * @param plugin an Obsidian plugin
+     * @param settings an array of Boolean settings
+     * @param onSubmit a callback which updates settings in your plugin
+     */
     constructor(plugin: Plugin, settings: BooleanSetting[], onSubmit?: (updatedSettings: BooleanSetting[]) => void) {
         super(plugin.app);
         this.settings = settings;
