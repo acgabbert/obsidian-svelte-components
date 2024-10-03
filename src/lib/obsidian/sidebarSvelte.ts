@@ -1,6 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 
@@ -17,6 +17,7 @@ export class SvelteSidebar extends ItemView {
     ipRegex = IP_REGEX;
     hashRegex = HASH_REGEX;
     domainRegex = DOMAIN_REGEX;
+    ipv6Regex = IPv6_REGEX;
     
     constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
         super(leaf);
@@ -97,6 +98,11 @@ export class SvelteSidebar extends ItemView {
             items: [],
             sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
         }
+        const ipv6: ParsedIndicators = {
+            title: "IPv6",
+            items: extractMatches(fileContent, this.ipv6Regex),
+            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+        }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
         if (this.splitLocalIp) {
@@ -114,6 +120,7 @@ export class SvelteSidebar extends ItemView {
         if (this.splitLocalIp) this.iocs.push(privateIps);
         this.iocs.push(domains);
         this.iocs.push(hashes);
+        this.iocs.push(ipv6)
         this.refangIocs();
         this.processExclusions();
     }
