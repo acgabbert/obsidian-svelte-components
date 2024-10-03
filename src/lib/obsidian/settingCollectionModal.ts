@@ -20,7 +20,7 @@ export interface BooleanSetting {
  *      settings.forEach(async (setting, index) => {
  *          if (setting.key !== undefined) {
  *              const settingKey: keyof MyPluginSettings = setting.key
- *              if (!this.settings[settingKey]) return;
+ *              if (this.settings[settingKey] === undefined) return;
  *              this.settings[settingKey] = setting.value;
  *              console.log(`set ${this.settings[settingKey]}`);
  *          }
@@ -32,6 +32,7 @@ export interface BooleanSetting {
 class SettingCollectionModal extends Modal {
     settings: BooleanSetting[];
     plugin: Plugin;
+    title: string;
     onSubmit: ((updatedSettings: BooleanSetting[]) => void) | undefined;
     
     /**
@@ -40,10 +41,12 @@ class SettingCollectionModal extends Modal {
      * @param settings an array of Boolean settings
      * @param onSubmit a callback which updates settings in your plugin
      */
-    constructor(plugin: Plugin, settings: BooleanSetting[], onSubmit?: (updatedSettings: BooleanSetting[]) => void) {
+    constructor(plugin: Plugin, settings: BooleanSetting[], title?: string, onSubmit?: (updatedSettings: BooleanSetting[]) => void) {
         super(plugin.app);
         this.settings = settings;
         this.plugin = plugin;
+        if (title) this.title = title;
+        else this.title = "Settings";
         this.onSubmit = onSubmit;
     }
 
@@ -51,7 +54,8 @@ class SettingCollectionModal extends Modal {
         let checkboxes = new SettingCollection({
             target: this.contentEl,
             props: {
-                items: this.settings
+                items: this.settings,
+                title: this.title
             }
         });
         checkboxes.$on('change', (event: { detail: BooleanSetting; }) => {
