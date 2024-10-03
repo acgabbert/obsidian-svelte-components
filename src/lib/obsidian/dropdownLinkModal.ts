@@ -22,7 +22,6 @@ class DropdownLinkModal extends Modal {
 
     onOpen(): void {
         if (!this.dropdownOptions) return;
-        console.log(this.dropdownOptions);
         this.dropdownSelector = new DropdownSelector({
             target: this.contentEl,
             props: {
