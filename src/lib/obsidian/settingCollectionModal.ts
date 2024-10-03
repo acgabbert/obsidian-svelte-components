@@ -9,13 +9,33 @@ export interface BooleanSetting {
     value: boolean;
 }
 
+
+/**
+ * Presents a collection of settings to be changed.
+ * 
+ * @example
+ * ```ts
+ *  new SettingCollectionModal(this, settings, async (settings) => {
+ *      console.log(this.settings);
+ *      settings.forEach(async (setting, index) => {
+ *          if (setting.key !== undefined) {
+ *              const settingKey: keyof MyPluginSettings = setting.key
+ *              if (!this.settings[settingKey]) return;
+ *              this.settings[settingKey] = setting.value;
+ *              console.log(`set ${this.settings[settingKey]}`);
+ *          }
+ *          await this.saveSettings();
+ *      });
+ *  }).open();
+ *  ```
+ */
 class SettingCollectionModal extends Modal {
     settings: BooleanSetting[];
     plugin: Plugin;
     onSubmit: ((updatedSettings: BooleanSetting[]) => void) | undefined;
     
     /**
-     * 
+     * Creates a new SettingCollectionModal
      * @param plugin an Obsidian plugin
      * @param settings an array of Boolean settings
      * @param onSubmit a callback which updates settings in your plugin
