@@ -44,7 +44,7 @@
                             {#if site.multisearch && multisearchLinks.has(site.shortName)}
                                 <Button 
                                     href={multisearchLinks.get(site.shortName)}
-                                    title={`Multisearch ${site.shortName}`}
+                                    title={`Search all - ${site.shortName}`}
                                 />
                             {/if}
                         {/each}
