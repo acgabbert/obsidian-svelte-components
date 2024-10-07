@@ -27,6 +27,14 @@
             }
         });
     }
+
+    function getMultisearchLink(shortName: string): string {
+        const href = multisearchLinks.get(shortName);
+        if (href === undefined) {
+            throw new Error(`No multisearch link found for ${shortName}`);
+        }
+        return href;
+    }
 </script>
 
 <details class="sidebar-container tree-item" {open}>
@@ -43,7 +51,7 @@
                         {#each indicatorList.sites as site}
                             {#if site.multisearch && multisearchLinks.has(site.shortName)}
                                 <Button 
-                                    href={multisearchLinks.get(site.shortName)}
+                                    href={getMultisearchLink(site.shortName)}
                                     title={`Search all - ${site.shortName}`}
                                 />
                             {/if}
