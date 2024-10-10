@@ -7,6 +7,7 @@ export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 export class SvelteSidebar extends ItemView {
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
+    ocrIocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
 
@@ -67,7 +68,8 @@ export class SvelteSidebar extends ItemView {
                 this.sidebar = new Sidebar({
                     target: this.contentEl,
                     props: {
-                        indicators: this.iocs
+                        indicators: this.iocs,
+                        ocrIndicators: this.ocrIocs
                     }
                 });
             }
