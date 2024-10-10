@@ -11,7 +11,7 @@
 
 <div class="collapsible">
     <button class="header-button" on:click={toggleCollapse} aria-expanded={!isCollapsed}>
-        <span>{isCollapsed ? '+' : '−'}</span> OCR Indicators
+        <span>{isCollapsed ? "+" : "-"}</span> OCR Indicators
     </button>
     {#if !isCollapsed}
         <div class="ocr-content" transition:slide>
@@ -30,8 +30,8 @@
     }
 
     .header-button {
-        cursor: pointer;
         all: unset;
+        cursor: pointer;
         font-size: var(--h4-size);
         font-weight: var(--h4-weight);
     }

@@ -8,6 +8,7 @@ export class SvelteSidebar extends ItemView {
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
     ocrIocs: ParsedIndicators[] | undefined;
+    ocr: boolean = false;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
 
@@ -20,13 +21,14 @@ export class SvelteSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, ocr?: boolean) {
         super(leaf);
         this.registerActiveFileListener();
         this.registerOpenFile();
         this.iocs = [];
         this.plugin = plugin;
         this.splitLocalIp = true;
+        if (ocr) this.ocr = ocr;
     }
 
     getViewType(): string {
