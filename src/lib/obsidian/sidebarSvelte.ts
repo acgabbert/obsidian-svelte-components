@@ -1,14 +1,17 @@
-import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, TAbstractFile, TFile, WorkspaceLeaf, type EventRef } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
+import OcrIndicators from "../components/OcrIndicators.svelte";
 import { CyberPlugin, DOMAIN_REGEX, extractMatches, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import type Tesseract from "tesseract.js";
 
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 
 export class SvelteSidebar extends ItemView {
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
-    ocrIocs: ParsedIndicators[] | undefined;
+    ocrIocs: Promise<ParsedIndicators[]> | undefined;
     ocr: boolean = false;
+    worker: Tesseract.Worker | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
 
@@ -20,48 +23,60 @@ export class SvelteSidebar extends ItemView {
     hashRegex = HASH_REGEX;
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
+
+    openListener: EventRef;
+    modifyListener: EventRef | null;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker?: Tesseract.Worker) {
         super(leaf);
-        this.registerActiveFileListener();
-        this.registerOpenFile();
-        this.iocs = [];
         this.plugin = plugin;
+        this.modifyListener = this.registerActiveFileListener();
+        console.log(this.modifyListener);
+        this.openListener = this.registerOpenFile();
+        this.iocs = [];
         this.splitLocalIp = true;
+        if (worker) {
+            this.ocr = true;
+            this.worker = worker;
+        }
     }
 
     getViewType(): string {
         return SVELTE_VIEW_TYPE;
     }
 
-    setOcr(): void {
-        this.ocr = true;
-    }
-
     getDisplayText(): string {
         return "Svelte Sidebar";
     }
 
-    registerActiveFileListener() {
-        if (!this.plugin) return;
+    registerActiveFileListener(): EventRef | null {
+        console.log('registering modification listener')
+        if (!this.plugin) return null;
+        let ref: EventRef;
         this.registerEvent(
-            this.plugin.app.vault.on('modify', async (file: TAbstractFile) => {
+            ref = this.plugin.app.vault.on('modify', async (file: TAbstractFile) => {
+                console.log('-----------file modified-----------');
                 if (!this.plugin) return;
                 if (file === this.plugin.app.workspace.getActiveFile() && file instanceof TFile) {
+                    console.log('parsing indicators')
                     await this.parseIndicators(file);
                 }
             })
         );
+        return ref;
     }
 
     registerOpenFile() {
+        let ref: EventRef;
         this.registerEvent(
-            this.app.workspace.on('file-open', async (file: TFile | null) => {
+            ref = this.app.workspace.on('file-open', async (file: TFile | null) => {
+                console.log('-----------file opened-----------');
                 if (file && file === this.app.workspace.getActiveFile()) {
                     await this.parseIndicators(file);
                 }
             })
         );
+        return ref;
     }
 
     protected async onOpen(): Promise<void> {
@@ -127,11 +142,11 @@ export class SvelteSidebar extends ItemView {
                 }
             }
         }
-        retval.push(ips);
-        if (this.splitLocalIp) retval.push(privateIps);
-        retval.push(domains);
-        retval.push(hashes);
-        retval.push(ipv6)
+        if (ips.items.length > 0) retval.push(ips);
+        if (this.splitLocalIp && privateIps.items.length > 0) retval.push(privateIps);
+        if (domains.items.length > 0) retval.push(domains);
+        if (hashes.items.length > 0) retval.push(hashes);
+        if (ipv6.items.length > 0) retval.push(ipv6)
         this.refangIocs();
         this.processExclusions();
         return retval;
@@ -139,10 +154,12 @@ export class SvelteSidebar extends ItemView {
 
     async getOcrMatches(file: TFile): Promise<ParsedIndicators[]> {
         const app = this.plugin?.app;
-        if (!app) return [];
+        if (!app || !this.worker) return [];
         const attachments = getAttachments(file.path, app);
+        console.log(`attachments:\n${attachments}`);
         const results = await ocrMultiple(app, attachments, null);
         if (!results) return [];
+        console.log(results);
         const allResults = results.join("\n");
         return this.getMatches(allResults);
     }
@@ -178,7 +195,7 @@ export class SvelteSidebar extends ItemView {
         if (!this.plugin) return;
         this.iocs = await this.getFileContentMatches(file);
         if (this.ocr) {
-            this.ocrIocs = await this.getOcrMatches(file);
+            this.ocrIocs = this.getOcrMatches(file);
         }
         this.sidebar?.$set({
             indicators: this.iocs,
@@ -188,5 +205,7 @@ export class SvelteSidebar extends ItemView {
 
     async onClose() {
         this.sidebar?.$destroy();
+        this.plugin?.app.workspace.offref(this.openListener);
+        if (this.modifyListener) this.plugin?.app.workspace.offref(this.modifyListener);
     }
 }
