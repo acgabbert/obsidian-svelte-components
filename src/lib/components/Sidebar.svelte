@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { ParsedIndicators } from "obsidian-cyber-utils";
-    import IocList from "./IocList.svelte";
+    import { IocList } from "obsidian-svelte-components";
     import OcrIndicators from "./OcrIndicators.svelte";
     export let indicators: ParsedIndicators[];
-    export let ocrIndicators: ParsedIndicators[] | undefined;
+    export let ocrIndicators: Promise<ParsedIndicators[]> | undefined;
 </script>
 
 <h4>Extracted Indicators</h4>

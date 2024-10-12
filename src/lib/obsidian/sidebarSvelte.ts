@@ -1,6 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 
@@ -21,18 +21,21 @@ export class SvelteSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, ocr?: boolean) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
         super(leaf);
         this.registerActiveFileListener();
         this.registerOpenFile();
         this.iocs = [];
         this.plugin = plugin;
         this.splitLocalIp = true;
-        if (ocr) this.ocr = ocr;
     }
 
     getViewType(): string {
         return SVELTE_VIEW_TYPE;
+    }
+
+    setOcr(): void {
+        this.ocr = true;
     }
 
     getDisplayText(): string {
@@ -78,10 +81,14 @@ export class SvelteSidebar extends ItemView {
         }
     }
 
-    async getMatches(file: TFile) {
-        if (!this.plugin) return;
+    async getFileContentMatches(file: TFile): Promise<ParsedIndicators[]> {
+        if (!this.plugin) return [];
         const fileContent = await this.plugin.app.vault.cachedRead(file);
-        this.iocs = [];
+        return this.getMatches(fileContent);
+    }
+
+    async getMatches(fileContent: string): Promise<ParsedIndicators[]> {
+        const retval = [];
         const ips: ParsedIndicators = {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
@@ -120,13 +127,24 @@ export class SvelteSidebar extends ItemView {
                 }
             }
         }
-        this.iocs.push(ips);
-        if (this.splitLocalIp) this.iocs.push(privateIps);
-        this.iocs.push(domains);
-        this.iocs.push(hashes);
-        this.iocs.push(ipv6)
+        retval.push(ips);
+        if (this.splitLocalIp) retval.push(privateIps);
+        retval.push(domains);
+        retval.push(hashes);
+        retval.push(ipv6)
         this.refangIocs();
         this.processExclusions();
+        return retval;
+    }
+
+    async getOcrMatches(file: TFile): Promise<ParsedIndicators[]> {
+        const app = this.plugin?.app;
+        if (!app) return [];
+        const attachments = getAttachments(file.path, app);
+        const results = await ocrMultiple(app, attachments, null);
+        if (!results) return [];
+        const allResults = results.join("\n");
+        return this.getMatches(allResults);
     }
 
     processExclusions() {
@@ -157,9 +175,14 @@ export class SvelteSidebar extends ItemView {
     }
 
     async parseIndicators(file: TFile) {
-        await this.getMatches(file);
+        if (!this.plugin) return;
+        this.iocs = await this.getFileContentMatches(file);
+        if (this.ocr) {
+            this.ocrIocs = await this.getOcrMatches(file);
+        }
         this.sidebar?.$set({
-            indicators: this.iocs
+            indicators: this.iocs,
+            ocrIndicators: this.ocrIocs
         });
     }
 

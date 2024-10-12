@@ -2,7 +2,7 @@
 	import type { ParsedIndicators } from "obsidian-cyber-utils";
     import { IocList } from "obsidian-svelte-components";
 	import { slide } from "svelte/transition";
-    export let indicators: ParsedIndicators[];
+    export let indicators: Promise<ParsedIndicators[]>;
     let isCollapsed = false;
     function toggleCollapse() {
         isCollapsed = !isCollapsed;
@@ -14,13 +14,17 @@
         <span>{isCollapsed ? "+" : "-"}</span> OCR Indicators
     </button>
     {#if !isCollapsed}
-        <div class="ocr-content" transition:slide>
-            {#each indicators as indicatorList}
-                {#if indicatorList.items.length > 0}
-                    <IocList indicatorList={indicatorList}/>
-                {/if}
-            {/each}
-        </div>
+        {#await indicators}
+            <p>Loading...</p>
+        {:then indicators} 
+                <div class="ocr-content" transition:slide>
+                    {#each indicators as indicatorList}
+                        {#if indicatorList.items.length > 0}
+                            <IocList indicatorList={indicatorList}/>
+                        {/if}
+                    {/each}
+                </div>
+        {/await}
     {/if}
 </div>
     
