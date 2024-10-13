@@ -7,11 +7,13 @@ import type Tesseract from "tesseract.js";
 export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
 
 export class SvelteSidebar extends ItemView {
+    ocr: boolean = false;
+    worker: Tesseract.Worker | undefined;
+    private ocrResultsCache: Map<string, string> = new Map();
+
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
     ocrIocs: Promise<ParsedIndicators[]> | undefined;
-    ocr: boolean = false;
-    worker: Tesseract.Worker | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
 
@@ -153,15 +155,25 @@ export class SvelteSidebar extends ItemView {
     }
 
     async getOcrMatches(file: TFile): Promise<ParsedIndicators[]> {
+        console.log(`entering getOcrMatches\nresults so far: ${this.ocrResultsCache}`)
         const app = this.plugin?.app;
         if (!app || !this.worker) return [];
         const attachments = getAttachments(file.path, app);
+        //const results: Map<string, string> = new Map();
+        attachments.forEach((file, index, array) => {
+            if (this.ocrResultsCache.has(file)) {
+                console.log(`results already has ${file}`);
+                //results.set(file, this.ocrResultsCache.get(file) || "");
+                array.splice(index, 1);
+            }
+        })
         console.log(`attachments:\n${attachments}`);
-        const results = await ocrMultiple(app, attachments, null);
-        if (!results) return [];
-        console.log(results);
-        const allResults = results.join("\n");
-        return this.getMatches(allResults);
+        const newOcrResults = await ocrMultiple(app, attachments, this.worker);
+        let allResultsMap: Map<string, string>;
+        if (!newOcrResults) allResultsMap = this.ocrResultsCache;
+        else allResultsMap = new Map([...Array.from(this.ocrResultsCache.entries()), ...Array.from(newOcrResults?.entries())])
+        //const allResults = results.join("\n");
+        return this.getMatches(Array.from(allResultsMap.values()).join("\n"));
     }
 
     processExclusions() {
