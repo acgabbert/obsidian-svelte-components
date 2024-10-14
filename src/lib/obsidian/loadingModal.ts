@@ -1,4 +1,4 @@
-import ApiResponse from "$lib/components/ApiResponse.svelte";
+import LoadingCode from "$lib/components/LoadingCode.svelte";
 import { App, Modal } from "obsidian";
 
 export class ApiResponseModal extends Modal {
@@ -10,7 +10,7 @@ export class ApiResponseModal extends Modal {
     }
 
     onOpen(): void {
-        new ApiResponse({
+        new LoadingCode({
             target: this.contentEl,
             props: {
                 text: this.code

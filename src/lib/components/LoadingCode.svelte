@@ -25,5 +25,6 @@
 
     code {
         user-select: text;
+        word-wrap: break-word;
     }
 </style>  
