@@ -28,6 +28,6 @@ class DropdownLinkModal extends Modal {
                 title: this.title,
                 options: this.dropdownOptions
             }
-        })
+        });
     }
 }
