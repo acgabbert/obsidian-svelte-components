@@ -3,9 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-	build: {
-		rollupOptions: {
-			external: ['marked']
-		}
+	optimizeDeps: {
+		include: ['marked']
 	}
 });
