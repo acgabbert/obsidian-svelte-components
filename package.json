@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-svelte-components",
-	"version": "0.4.3",
+	"version": "0.4.4",
 	"description": "Svelte components for Obsidian plugin development.",
 	"author": "acgabbert",
 	"license": "MIT",
