@@ -1,19 +1,19 @@
-import LoadingCode from "$lib/components/LoadingCode.svelte";
+import LoadingMarkdown from "$lib/components/LoadingMarkdown.svelte";
 import { App, Modal } from "obsidian";
 
 export class ApiResponseModal extends Modal {
-    code: Promise<string>;
+    text: Promise<string>;
 
-    constructor(app: App, code: Promise<string>) {
+    constructor(app: App, text: Promise<string>) {
         super(app);
-        this.code = code;
+        this.text = text;
     }
 
     onOpen(): void {
-        new LoadingCode({
+        new LoadingMarkdown({
             target: this.contentEl,
             props: {
-                text: this.code
+                text: this.text
             }
         });
     }

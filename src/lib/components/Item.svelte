@@ -10,6 +10,12 @@
     <div class="tree-item-inner">{item}</div>
 </div>
 {#if buttons}
+<div class="grid-container">
+    {#each buttons as button}
+        <Button href={button.site.replace('%s', item)} title={button.shortName}/>
+    {/each}
+</div>
+<!--
     <div class="table-container">
         <table>
             <tr class="sidebar-table-row">
@@ -19,4 +25,5 @@
             </tr>
         </table>
     </div>
+-->
 {/if}

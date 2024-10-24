@@ -2,9 +2,9 @@ import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
 import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
 
-export const SVELTE_VIEW_TYPE = "Svelte-Sidebar";
+export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
 
-export class SvelteSidebar extends ItemView {
+export class IndicatorSidebar extends ItemView {
     sidebar: Sidebar | undefined;
     iocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
@@ -29,7 +29,7 @@ export class SvelteSidebar extends ItemView {
     }
 
     getViewType(): string {
-        return SVELTE_VIEW_TYPE;
+        return DEFAULT_VIEW_TYPE;
     }
 
     getDisplayText(): string {
@@ -154,9 +154,18 @@ export class SvelteSidebar extends ItemView {
 
     async parseIndicators(file: TFile) {
         await this.getMatches(file);
-        this.sidebar?.$set({
-            indicators: this.iocs
-        });
+        if (!this.sidebar && this.iocs) {
+            this.sidebar = new Sidebar({
+                target: this.contentEl,
+                props: {
+                    indicators: this.iocs
+                }
+            });
+        } else {
+            this.sidebar?.$set({
+                indicators: this.iocs
+            });
+        }
     }
 
     async onClose() {

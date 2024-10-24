@@ -3,8 +3,12 @@
     export let href: string;
 </script>
 
-<td class="sidebar-table-item">
-	<a {href}>
-		<button class="sidebar-button">{title}</button>
-	</a>
-</td>
+<a {href}>
+	<button>{title}</button>
+</a>
+
+<style>
+	button {
+		transform: scale(0.8, 0.8);
+	}
+</style>
