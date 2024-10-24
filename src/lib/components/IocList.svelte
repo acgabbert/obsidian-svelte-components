@@ -45,22 +45,6 @@
         {/each}
     </div>
     {#if indicatorList.sites}
-    <!--
-        <div class="table-container">
-            <table>
-                <tr class="sidebar-table-row">
-                        {#each indicatorList.sites as site}
-                            {#if site.multisearch && multisearchLinks.has(site.shortName)}
-                                <Button 
-                                    href={getMultisearchLink(site.shortName)}
-                                    title={`Search all - ${site.shortName}`}
-                                />
-                            {/if}
-                        {/each}
-                </tr>
-            </table>
-        </div>
-    -->
     <div class="grid-container">
         {#each indicatorList.sites as site}
             {#if site.multisearch && multisearchLinks.has(site.shortName)}
@@ -73,10 +57,3 @@
     </div>
     {/if}
 </details>
-
-<style>
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    }
-</style>

@@ -33,7 +33,7 @@ export class IndicatorSidebar extends ItemView {
     }
 
     getDisplayText(): string {
-        return "Svelte Sidebar";
+        return "Indicator Sidebar";
     }
 
     registerActiveFileListener() {

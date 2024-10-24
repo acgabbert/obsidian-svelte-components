@@ -15,15 +15,4 @@
         <Button href={button.site.replace('%s', item)} title={button.shortName}/>
     {/each}
 </div>
-<!--
-    <div class="table-container">
-        <table>
-            <tr class="sidebar-table-row">
-                    {#each buttons as button}
-                        <Button href={button.site.replace('%s', item)} title={button.shortName}/>
-                    {/each}
-            </tr>
-        </table>
-    </div>
--->
 {/if}
