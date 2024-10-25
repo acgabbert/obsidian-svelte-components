@@ -63,14 +63,6 @@ export class IndicatorSidebar extends ItemView {
         const file = this.plugin.app.workspace.getActiveFile();
         if (file) {
             await this.parseIndicators(file);
-            if (this.iocs) {
-                this.sidebar = new Sidebar({
-                    target: this.contentEl,
-                    props: {
-                        indicators: this.iocs
-                    }
-                });
-            }
         }
     }
 
@@ -169,6 +161,10 @@ export class IndicatorSidebar extends ItemView {
     }
 
     async onClose() {
-        this.sidebar?.$destroy();
+        if (this.sidebar) {
+           this.sidebar?.$destroy();
+           this.sidebar = undefined;
+           this.plugin?.sidebarContainers.delete(this.getViewType());
+        }
     }
 }
