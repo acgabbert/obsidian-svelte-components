@@ -1,18 +1,18 @@
 <script lang="ts">
-    import Button from "./Button.svelte";
 	import type { searchSite } from "obsidian-cyber-utils";
+    import SearchButton from "./SearchButton.svelte";
 
-    export let item: string;
-    export let buttons: searchSite[] | undefined;
+    export let indicator: string;
+    export let sites: searchSite[] | undefined;
 </script>
 
 <div class="sidebar-list-item tree-item-self">
-    <div class="tree-item-inner">{item}</div>
+    <div class="tree-item-inner">{indicator}</div>
 </div>
-{#if buttons}
+{#if sites}
 <div class="grid-container">
-    {#each buttons as button}
-        <Button href={button.site.replace('%s', item)} title={button.shortName}/>
+    {#each sites as site}
+        <SearchButton {site} {indicator}/>
     {/each}
 </div>
 {/if}

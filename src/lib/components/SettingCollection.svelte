@@ -7,9 +7,6 @@ Update a collection of boolean values at once using checkboxes.
     export let items: BooleanSetting[];
     export let title: string;
 
-    // Initialize checkbox states with default values or false if not provided
-    //let checkboxes: boolean[] = defaultValues.length ? [...defaultValues] : Array(items.length).fill(false);
-
     const dispatch = createEventDispatcher();
 
     export function getValues(): BooleanSetting[] {
