@@ -1,6 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
 
@@ -164,7 +164,7 @@ export class IndicatorSidebar extends ItemView {
         if (this.sidebar) {
            this.sidebar?.$destroy();
            this.sidebar = undefined;
-           this.plugin?.sidebarContainers.delete(this.getViewType());
+           this.plugin?.sidebarContainers?.delete(this.getViewType());
         }
     }
 }
