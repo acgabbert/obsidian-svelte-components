@@ -86,8 +86,13 @@ export class IndicatorSidebar extends ItemView {
         return await this.plugin.app.vault.cachedRead(file);
     }
 
-    async getMatches(fileContent: string) {
-        this.iocs = [];
+    /**
+     * Extract IOCs from the given file content.
+     * @param fileContent content from which to extract IOCs
+     * @returns an array of ParsedIndicators objects for each IOC type
+     */
+    async getMatches(fileContent: string): Promise<ParsedIndicators[]> {
+        let retval = [];
         const ips: ParsedIndicators = {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
@@ -126,24 +131,33 @@ export class IndicatorSidebar extends ItemView {
                 }
             }
         }
-        this.iocs.push(ips);
-        if (this.splitLocalIp) this.iocs.push(privateIps);
-        this.iocs.push(domains);
-        this.iocs.push(hashes);
-        this.iocs.push(ipv6)
+        retval.push(ips);
+        if (this.splitLocalIp) retval.push(privateIps);
+        retval.push(domains);
+        retval.push(hashes);
+        retval.push(ipv6)
         this.refangIocs();
         this.processExclusions();
+        return retval;
     }
     
-    async getOcrMatches(fileContent: string) {
+    async getOcrMatches(): Promise<ParsedIndicators[]> {
         const app = this.plugin?.app;
+        let retval: ParsedIndicators[] = [];
         if (!app || !this.plugin  || !this.worker /*|| !this.plugin.settings.enableOcr*/) {
-            this.ocrIocs = null;
-            return;
+            return retval;
         }
-        this.ocrIocs = new Promise(async (resolve) => {
+        return new Promise(async (resolve) => {
             const results = await ocrMultiple(app, this.attachments, this.worker);
-        })
+            if (!results) {
+                resolve(retval);
+                return;
+            }
+            const allResults = Array.from(results.values()).join("\n");
+            retval = await this.getMatches(allResults);
+            resolve(retval);
+            return;
+        });
     }
 
     processExclusions() {
@@ -194,10 +208,10 @@ export class IndicatorSidebar extends ItemView {
     async parseIndicators(file: TFile) {
         if (!this.plugin?.app) return;
         const fileContent = await this.readFile(file);
-        await this.getMatches(fileContent);
-        if (!this.compareAttachments(file)) {
+        this.iocs = await this.getMatches(fileContent);
+        if (!this.compareAttachments(file) /*&& this.plugin.settings.enableOcr*/) {
             // attachments changed
-            this.getOcrMatches(fileContent);
+            this.ocrIocs = this.getOcrMatches();
         }
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
