@@ -1,6 +1,7 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type searchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
+import { type Worker } from "tesseract.js"
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
 
@@ -9,6 +10,11 @@ export class IndicatorSidebar extends ItemView {
     iocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
+
+    currentFile: TFile | null;
+    attachments: string[];
+    worker: Worker | null;
+    ocrIocs: Promise<ParsedIndicators[]> | null;
 
     ipExclusions: string[] | undefined;
     domainExclusions: string[] | undefined;
@@ -19,13 +25,20 @@ export class IndicatorSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker?: Worker) {
         super(leaf);
-        this.registerActiveFileListener();
-        this.registerOpenFile();
         this.iocs = [];
         this.plugin = plugin;
         this.splitLocalIp = true;
+        this.attachments = [];
+        this.ocrIocs = null;
+        this.currentFile = null;
+        if (worker) this.worker = worker;
+        else this.worker = null;
+        this.plugin?.app.workspace.onLayoutReady(() => {
+            this.registerActiveFileListener();
+            this.registerOpenFile();
+        })
     }
 
     getViewType(): string {
@@ -51,7 +64,9 @@ export class IndicatorSidebar extends ItemView {
     registerOpenFile() {
         this.registerEvent(
             this.app.workspace.on('file-open', async (file: TFile | null) => {
-                if (file && file === this.app.workspace.getActiveFile()) {
+                if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
+                    this.currentFile = this.app.workspace.getActiveFile();
+                    this.ocrIocs = null;
                     await this.parseIndicators(file);
                 }
             })
@@ -66,34 +81,37 @@ export class IndicatorSidebar extends ItemView {
         }
     }
 
-    async getMatches(file: TFile) {
-        if (!this.plugin) return;
-        const fileContent = await this.plugin.app.vault.cachedRead(file);
+    async readFile(file: TFile): Promise<string> {
+        if (!this.plugin) return "";
+        return await this.plugin.app.vault.cachedRead(file);
+    }
+
+    async getMatches(fileContent: string) {
         this.iocs = [];
         const ips: ParsedIndicators = {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         const domains: ParsedIndicators = {
             title: "Domains",
             items: extractMatches(fileContent, this.domainRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.domain)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain)
         }
         const hashes: ParsedIndicators = {
             title: "Hashes",
             items: extractMatches(fileContent, this.hashRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.hash)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash)
         }
         const privateIps: ParsedIndicators = {
             title: "IPs (Private)",
             items: [],
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         const ipv6: ParsedIndicators = {
             title: "IPv6",
             items: extractMatches(fileContent, this.ipv6Regex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
@@ -115,6 +133,17 @@ export class IndicatorSidebar extends ItemView {
         this.iocs.push(ipv6)
         this.refangIocs();
         this.processExclusions();
+    }
+    
+    async getOcrMatches(fileContent: string) {
+        const app = this.plugin?.app;
+        if (!app || !this.plugin  || !this.worker /*|| !this.plugin.settings.enableOcr*/) {
+            this.ocrIocs = null;
+            return;
+        }
+        this.ocrIocs = new Promise(async (resolve) => {
+            const results = await ocrMultiple(app, this.attachments, this.worker);
+        })
     }
 
     processExclusions() {
@@ -144,8 +173,32 @@ export class IndicatorSidebar extends ItemView {
         })
     }
 
+    /**
+     * Compare attachments for the current file against the class's attachment list.
+     * @param file the file to evaluate
+     * @returns true if attachments are unchanged, false if attachments have changed
+     */
+    private compareAttachments(file: TFile): boolean {
+        if (!this.plugin?.app) return true;
+        const attachments = getAttachments(file.path, this.plugin.app);
+        const set1 = new Set(attachments);
+        const set2 = new Set(this.attachments);
+        if (set1.size === set2.size && [...set1].every(item => set2.has(item))) {
+            return true;
+        } else {
+            this.attachments = attachments;
+            return false;
+        }
+    }
+
     async parseIndicators(file: TFile) {
-        await this.getMatches(file);
+        if (!this.plugin?.app) return;
+        const fileContent = await this.readFile(file);
+        await this.getMatches(fileContent);
+        if (!this.compareAttachments(file)) {
+            // attachments changed
+            this.getOcrMatches(fileContent);
+        }
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
                 target: this.contentEl,
@@ -164,7 +217,7 @@ export class IndicatorSidebar extends ItemView {
         if (this.sidebar) {
            this.sidebar?.$destroy();
            this.sidebar = undefined;
-           this.plugin?.sidebarContainers.delete(this.getViewType());
+           this.plugin?.sidebarContainers?.delete(this.getViewType());
         }
     }
 }
