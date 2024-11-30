@@ -12,9 +12,6 @@ export class IndicatorSidebar extends ItemView {
     splitLocalIp: boolean;
 
     currentFile: TFile | null;
-    attachments: string[];
-    worker: Worker | null;
-    ocrIocs: Promise<ParsedIndicators[]> | null;
 
     ipExclusions: string[] | undefined;
     domainExclusions: string[] | undefined;
@@ -30,15 +27,11 @@ export class IndicatorSidebar extends ItemView {
         this.iocs = [];
         this.plugin = plugin;
         this.splitLocalIp = true;
-        this.attachments = [];
-        this.ocrIocs = null;
         this.currentFile = null;
-        if (worker) this.worker = worker;
-        else this.worker = null;
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
-        })
+        });
     }
 
     getViewType(): string {
@@ -66,7 +59,6 @@ export class IndicatorSidebar extends ItemView {
             this.app.workspace.on('file-open', async (file: TFile | null) => {
                 if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
                     this.currentFile = this.app.workspace.getActiveFile();
-                    this.ocrIocs = null;
                     await this.parseIndicators(file);
                 }
             })
@@ -140,25 +132,6 @@ export class IndicatorSidebar extends ItemView {
         this.processExclusions();
         return retval;
     }
-    
-    async getOcrMatches(): Promise<ParsedIndicators[]> {
-        const app = this.plugin?.app;
-        let retval: ParsedIndicators[] = [];
-        if (!app || !this.plugin  || !this.worker /*|| !this.plugin.settings.enableOcr*/) {
-            return retval;
-        }
-        return new Promise(async (resolve) => {
-            const results = await ocrMultiple(app, this.attachments, this.worker);
-            if (!results) {
-                resolve(retval);
-                return;
-            }
-            const allResults = Array.from(results.values()).join("\n");
-            retval = await this.getMatches(allResults);
-            resolve(retval);
-            return;
-        });
-    }
 
     processExclusions() {
         this.iocs?.forEach(indicatorList => {
@@ -187,32 +160,8 @@ export class IndicatorSidebar extends ItemView {
         })
     }
 
-    /**
-     * Compare attachments for the current file against the class's attachment list.
-     * @param file the file to evaluate
-     * @returns true if attachments are unchanged, false if attachments have changed
-     */
-    private compareAttachments(file: TFile): boolean {
-        if (!this.plugin?.app) return true;
-        const attachments = getAttachments(file.path, this.plugin.app);
-        const set1 = new Set(attachments);
-        const set2 = new Set(this.attachments);
-        if (set1.size === set2.size && [...set1].every(item => set2.has(item))) {
-            return true;
-        } else {
-            this.attachments = attachments;
-            return false;
-        }
-    }
-
     async parseIndicators(file: TFile) {
-        if (!this.plugin?.app) return;
-        const fileContent = await this.readFile(file);
-        this.iocs = await this.getMatches(fileContent);
-        if (!this.compareAttachments(file) /*&& this.plugin.settings.enableOcr*/) {
-            // attachments changed
-            this.ocrIocs = this.getOcrMatches();
-        }
+        await this.getMatches(await this.readFile(file));
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
                 target: this.contentEl,

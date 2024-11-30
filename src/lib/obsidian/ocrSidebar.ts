@@ -1,0 +1,103 @@
+import type { Worker } from "tesseract.js";
+import { IndicatorSidebar } from "./sidebar";
+import { getAttachments, ocrMultiple, type CyberPlugin, type ParsedIndicators } from "obsidian-cyber-utils";
+import type { TFile, WorkspaceLeaf } from "obsidian";
+import Sidebar from "../components/Sidebar.svelte";
+
+export const OCR_VIEW_TYPE = "ocr-indicator-sidebar";
+
+export class OcrSidebar extends IndicatorSidebar {
+    attachments: string[];
+    worker: Worker;
+    ocrIocs: Promise<ParsedIndicators[]> | null;
+
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker: Worker) {
+        super(leaf, plugin);
+        this.attachments = [];
+        this.ocrIocs = null;
+        this.worker = worker;
+        this.plugin?.app.workspace.onLayoutReady(() => {
+            this.registerActiveFileListener();
+            this.registerOpenFile();
+        });
+    }
+
+    getViewType(): string {
+        return OCR_VIEW_TYPE;
+    }
+
+    getDisplayText(): string {
+        return "OCR Indicator Sidebar";
+    }
+
+    registerOpenFile() {
+        this.registerEvent(
+            this.app.workspace.on('file-open', async (file: TFile | null) => {
+                if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
+                    this.currentFile = this.app.workspace.getActiveFile();
+                    this.ocrIocs = null;
+                    await this.parseIndicators(file);
+                }
+            })
+        );
+    }
+    
+    async getOcrMatches(): Promise<ParsedIndicators[]> {
+        const app = this.plugin?.app;
+        let retval: ParsedIndicators[] = [];
+        if (!app || !this.plugin  || !this.worker /*|| !this.plugin.settings.enableOcr*/) {
+            return retval;
+        }
+        return new Promise(async (resolve) => {
+            const results = await ocrMultiple(app, this.attachments, this.worker);
+            if (!results) {
+                resolve(retval);
+                return;
+            }
+            const allResults = Array.from(results.values()).join("\n");
+            retval = await this.getMatches(allResults);
+            resolve(retval);
+            return;
+        });
+    }
+
+    /**
+     * Compare attachments for the current file against the class's attachment list.
+     * @param file the file to evaluate
+     * @returns true if attachments are unchanged, false if attachments have changed
+     */
+    private compareAttachments(file: TFile): boolean {
+        if (!this.plugin?.app) return true;
+        const attachments = getAttachments(file.path, this.plugin.app);
+        const set1 = new Set(attachments);
+        const set2 = new Set(this.attachments);
+        if (set1.size === set2.size && [...set1].every(item => set2.has(item))) {
+            return true;
+        } else {
+            this.attachments = attachments;
+            return false;
+        }
+    }
+
+    async parseIndicators(file: TFile) {
+        if (!this.plugin?.app) return;
+        const fileContent = await this.readFile(file);
+        this.iocs = await this.getMatches(fileContent);
+        if (!this.compareAttachments(file) /*&& this.plugin.settings.enableOcr*/) {
+            // attachments changed
+            this.ocrIocs = this.getOcrMatches();
+        }
+        if (!this.sidebar && this.iocs) {
+            this.sidebar = new Sidebar({
+                target: this.contentEl,
+                props: {
+                    indicators: this.iocs
+                }
+            });
+        } else {
+            this.sidebar?.$set({
+                indicators: this.iocs
+            });
+        }
+    }
+}
