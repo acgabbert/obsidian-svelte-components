@@ -41,7 +41,7 @@
     <summary class="tree-item-inner">{indicatorList.title}</summary>
     <div class="tree-item-children">
         {#each indicatorList.items as item}
-            <Item item={item} buttons={indicatorList.sites}/>
+            <Item indicator={item} sites={indicatorList.sites}/>
         {/each}
     </div>
     {#if indicatorList.sites}
@@ -50,7 +50,8 @@
             {#if site.multisearch && multisearchLinks.has(site.shortName)}
                 <Button 
                     href={getMultisearchLink(site.shortName)}
-                    title={`Search all - ${site.shortName}`}
+                    content={`Search all - ${site.shortName}`}
+                    title={`Search all - ${site.name}`}
                 />
             {/if}
         {/each}
