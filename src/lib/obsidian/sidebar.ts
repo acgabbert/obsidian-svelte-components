@@ -1,6 +1,7 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
+import { type Worker } from "tesseract.js"
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
 
@@ -9,6 +10,8 @@ export class IndicatorSidebar extends ItemView {
     iocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
+
+    currentFile: TFile | null;
 
     ipExclusions: string[] | undefined;
     domainExclusions: string[] | undefined;
@@ -19,13 +22,16 @@ export class IndicatorSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker?: Worker) {
         super(leaf);
-        this.registerActiveFileListener();
-        this.registerOpenFile();
         this.iocs = [];
         this.plugin = plugin;
         this.splitLocalIp = true;
+        this.currentFile = null;
+        this.plugin?.app.workspace.onLayoutReady(() => {
+            this.registerActiveFileListener();
+            this.registerOpenFile();
+        });
     }
 
     getViewType(): string {
@@ -51,7 +57,8 @@ export class IndicatorSidebar extends ItemView {
     registerOpenFile() {
         this.registerEvent(
             this.app.workspace.on('file-open', async (file: TFile | null) => {
-                if (file && file === this.app.workspace.getActiveFile()) {
+                if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
+                    this.currentFile = this.app.workspace.getActiveFile();
                     await this.parseIndicators(file);
                 }
             })
@@ -66,34 +73,42 @@ export class IndicatorSidebar extends ItemView {
         }
     }
 
-    async getMatches(file: TFile) {
-        if (!this.plugin) return;
-        const fileContent = await this.plugin.app.vault.cachedRead(file);
-        this.iocs = [];
+    async readFile(file: TFile): Promise<string> {
+        if (!this.plugin) return "";
+        return await this.plugin.app.vault.cachedRead(file);
+    }
+
+    /**
+     * Extract IOCs from the given file content.
+     * @param fileContent content from which to extract IOCs
+     * @returns an array of ParsedIndicators objects for each IOC type
+     */
+    async getMatches(fileContent: string): Promise<ParsedIndicators[]> {
+        let retval = [];
         const ips: ParsedIndicators = {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         const domains: ParsedIndicators = {
             title: "Domains",
             items: extractMatches(fileContent, this.domainRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.domain)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain)
         }
         const hashes: ParsedIndicators = {
             title: "Hashes",
             items: extractMatches(fileContent, this.hashRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.hash)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash)
         }
         const privateIps: ParsedIndicators = {
             title: "IPs (Private)",
             items: [],
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         const ipv6: ParsedIndicators = {
             title: "IPv6",
             items: extractMatches(fileContent, this.ipv6Regex),
-            sites: this.plugin?.settings?.searchSites.filter((x: searchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
         }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
@@ -108,13 +123,14 @@ export class IndicatorSidebar extends ItemView {
                 }
             }
         }
-        this.iocs.push(ips);
-        if (this.splitLocalIp) this.iocs.push(privateIps);
-        this.iocs.push(domains);
-        this.iocs.push(hashes);
-        this.iocs.push(ipv6)
+        retval.push(ips);
+        if (this.splitLocalIp) retval.push(privateIps);
+        retval.push(domains);
+        retval.push(hashes);
+        retval.push(ipv6)
         this.refangIocs();
         this.processExclusions();
+        return retval;
     }
 
     processExclusions() {
@@ -145,7 +161,7 @@ export class IndicatorSidebar extends ItemView {
     }
 
     async parseIndicators(file: TFile) {
-        await this.getMatches(file);
+        await this.getMatches(await this.readFile(file));
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
                 target: this.contentEl,
