@@ -10,6 +10,7 @@ export class OcrSidebar extends IndicatorSidebar {
     attachments: string[];
     worker: Worker;
     ocrIocs: Promise<ParsedIndicators[]> | null;
+    ocrCache: Map<string, ParsedIndicators[]>;
 
     constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker: Worker) {
         super(leaf, plugin);
@@ -20,6 +21,7 @@ export class OcrSidebar extends IndicatorSidebar {
             this.registerActiveFileListener();
             this.registerOpenFile();
         });
+        this.ocrCache = new Map<string, ParsedIndicators[]>();
     }
 
     getViewType(): string {
@@ -49,14 +51,22 @@ export class OcrSidebar extends IndicatorSidebar {
             return retval;
         }
         return new Promise(async (resolve) => {
-            const results = await ocrMultiple(app, this.attachments, this.worker);
+            let attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
+            const results = await ocrMultiple(app, attachmentsToOcr, this.worker);
             if (!results) {
                 resolve(retval);
                 return;
             }
-            const allResults = Array.from(results.values()).join("\n");
-            retval = await this.getMatches(allResults);
-            resolve(retval);
+
+            // Parse OCR results and update cache
+            for (const [filename, ocrText] of results.entries()) {
+                const iocs = await this.getMatches(ocrText);
+                this.ocrCache.set(filename, iocs);
+            }
+
+            // Combine all indicators from current attachments
+            const allIndicators = this.attachments.flatMap(att => this.ocrCache.get(att) || []);
+            resolve(allIndicators);
             return;
         });
     }
