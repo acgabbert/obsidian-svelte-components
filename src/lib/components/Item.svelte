@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { searchSite } from "obsidian-cyber-utils";
+	import type { SearchSite } from "obsidian-cyber-utils";
     import SearchButton from "./SearchButton.svelte";
 
     export let indicator: string;
-    export let sites: searchSite[] | undefined;
+    export let sites: SearchSite[] | undefined;
 </script>
 
 <div class="sidebar-list-item tree-item-self">
