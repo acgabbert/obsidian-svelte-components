@@ -1,7 +1,7 @@
 <script lang="ts">
-    import type { searchSite } from "obsidian-cyber-utils";
+    import type { SearchSite } from "obsidian-cyber-utils";
 
-    export let site: searchSite;
+    export let site: SearchSite;
     export let indicator: string;
 </script>
 

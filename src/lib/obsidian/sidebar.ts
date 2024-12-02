@@ -128,13 +128,13 @@ export class IndicatorSidebar extends ItemView {
         retval.push(domains);
         retval.push(hashes);
         retval.push(ipv6)
-        this.refangIocs();
-        this.processExclusions();
+        retval = this.refangIocs(retval);
+        retval = this.processExclusions(retval);
         return retval;
     }
 
-    processExclusions() {
-        this.iocs?.forEach(indicatorList => {
+    protected processExclusions(iocs: ParsedIndicators[]): ParsedIndicators[] {
+        iocs.forEach(indicatorList => {
             switch(indicatorList.title) {
                 case "IPs":
                     this.ipExclusions?.forEach(ip => {
@@ -150,14 +150,16 @@ export class IndicatorSidebar extends ItemView {
                     });
             }
         });
+        return iocs;
     }
 
-    private refangIocs() {
-        this.iocs?.forEach((iocList, index, array) => {
+    protected refangIocs(iocs: ParsedIndicators[]): ParsedIndicators[] {
+        iocs.forEach((iocList, index, array) => {
             iocList.items = iocList.items.map((x) => refangIoc(x));
             iocList.items = removeArrayDuplicates(iocList.items);
             array[index] = iocList;
-        })
+        });
+        return iocs;
     }
 
     async parseIndicators(file: TFile) {
