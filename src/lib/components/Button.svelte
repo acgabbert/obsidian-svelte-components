@@ -1,6 +1,6 @@
 <script lang="ts">
     export let title: string;
-	export let content: string;
+    export let content: string;
     export let href: string;
 </script>
 
