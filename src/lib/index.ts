@@ -11,6 +11,7 @@ import SettingCollection from "./components/SettingCollection.svelte";
 
 export * from "./obsidian/loadingModal.js";
 export * from "./obsidian/dropdownLinkModal.js";
+export * from "./obsidian/ocrSidebar.js";
 export * from "./obsidian/settingCollectionModal.js";
 export * from "./obsidian/sidebar.js";
 // explicit export of Svelte components
