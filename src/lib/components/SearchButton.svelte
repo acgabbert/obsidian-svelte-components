@@ -5,7 +5,7 @@
     export let indicator: string;
 </script>
 
-<a href={indicator}>
+<a href={site.site.replace('%s', indicator)}>
     <button title={site.name}>{site.shortName}</button>
 </a>
 
