@@ -7,6 +7,9 @@
     function toggleCollapse() {
         isCollapsed = !isCollapsed;
     }
+    function hasIndicators(indicators: ParsedIndicators[]): boolean {
+        return indicators.some(indicator => indicator.items.length > 0);
+    }
 </script>
 
 <div class="collapsible">
@@ -16,13 +19,19 @@
     {#await indicators}
         <p>Loading...</p>
     {:then indicators}
-        {#if !isCollapsed && indicators.length > 0}
-            <div class="ocr-content" transition:slide>
-                {#each indicators as indicatorList}
-                    {#if indicatorList.items.length > 0}
-                        <IocList {indicatorList}/>
-                    {/if}
-                {/each}
+        {#if hasIndicators(indicators)}
+            {#if !isCollapsed && indicators.length > 0}
+                <div class="ocr-content" transition:slide>
+                    {#each indicators as indicatorList}
+                        {#if indicatorList.items.length > 0}
+                            <IocList {indicatorList}/>
+                        {/if}
+                    {/each}
+                </div>
+            {/if}
+        {:else}
+            <div class="empty-state">
+                No indicators found in attachment files.
             </div>
         {/if}
     {/await}
@@ -38,5 +47,12 @@
         cursor: pointer;
         font-size: var(--h4-size);
         font-weight: var(--h4-weight);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+        font-style: italic;
     }
 </style>

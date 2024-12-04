@@ -1,13 +1,28 @@
 <script lang="ts">
 	import type { ParsedIndicators } from "obsidian-cyber-utils";
     import IocList from "./IocList.svelte";
-    //export let iocList: string[];
     export let indicators: ParsedIndicators[];
+    $: hasIndicators = indicators.some(list => list.items.length > 0);
 </script>
 
 <h4>Extracted Indicators</h4>
-{#each indicators as indicatorList}
-    {#if indicatorList.items.length > 0}
-        <IocList indicatorList={indicatorList}/>
-    {/if}
-{/each}
+{#if hasIndicators}
+    {#each indicators as indicatorList}
+        {#if indicatorList.items.length > 0}
+            <IocList indicatorList={indicatorList}/>
+        {/if}
+    {/each}
+{:else}
+    <div class="empty-state">
+        No indicators found.
+    </div>
+{/if}
+
+<style>
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+</style>
