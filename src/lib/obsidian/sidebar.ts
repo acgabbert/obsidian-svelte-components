@@ -1,6 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, filterExclusions, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
 import { type Worker } from "tesseract.js"
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
@@ -14,6 +14,7 @@ export class IndicatorSidebar extends ItemView {
     currentFile: TFile | null;
 
     ipExclusions: string[] | undefined;
+    ipv6Exclusions: string[] | undefined;
     domainExclusions: string[] | undefined;
     hashExclusions: string[] | undefined;
     
@@ -88,27 +89,32 @@ export class IndicatorSidebar extends ItemView {
         const ips: ParsedIndicators = {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
+            exclusions: this.ipExclusions ?? []
         }
         const domains: ParsedIndicators = {
             title: "Domains",
             items: extractMatches(fileContent, this.domainRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain),
+            exclusions: this.domainExclusions ?? []
         }
         const hashes: ParsedIndicators = {
             title: "Hashes",
             items: extractMatches(fileContent, this.hashRegex),
-            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash),
+            exclusions: this.hashExclusions ?? []
         }
         const privateIps: ParsedIndicators = {
             title: "IPs (Private)",
             items: [],
-            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
+            exclusions: this.ipExclusions ?? []
         }
         const ipv6: ParsedIndicators = {
             title: "IPv6",
             items: extractMatches(fileContent, this.ipv6Regex),
-            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip)
+            sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
+            exclusions: this.ipv6Exclusions ?? []
         }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
@@ -134,23 +140,12 @@ export class IndicatorSidebar extends ItemView {
     }
 
     protected processExclusions(iocs: ParsedIndicators[]): ParsedIndicators[] {
-        iocs.forEach(indicatorList => {
-            switch(indicatorList.title) {
-                case "IPs":
-                    this.ipExclusions?.forEach(ip => {
-                        if (indicatorList.items.includes(ip)) indicatorList.items.splice(indicatorList.items.indexOf(ip), 1);
-                    });
-                case "Domains":
-                    this.domainExclusions?.forEach(domain => {
-                        if (indicatorList.items.includes(domain)) indicatorList.items.splice(indicatorList.items.indexOf(domain), 1);
-                    });
-                case "Hashes":
-                    this.hashExclusions?.forEach(hash => {
-                        if (indicatorList.items.includes(hash)) indicatorList.items.splice(indicatorList.items.indexOf(hash), 1);
-                    });
-            }
-        });
-        return iocs;
+        return iocs.map(indicatorList => ({
+            ...indicatorList,
+            items: indicatorList.exclusions 
+            ? filterExclusions(indicatorList.items, indicatorList.exclusions)
+            : indicatorList.items
+        }))
     }
 
     protected refangIocs(iocs: ParsedIndicators[]): ParsedIndicators[] {
