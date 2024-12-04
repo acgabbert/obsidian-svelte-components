@@ -66,7 +66,26 @@ export class OcrSidebar extends IndicatorSidebar {
 
             // Combine all indicators from current attachments
             const allIndicators = this.attachments.flatMap(att => this.ocrCache.get(att) || []);
-            resolve(allIndicators);
+
+            // Combine indicators by type and remove duplicates
+            let combinedIndicators = allIndicators.reduce((acc, curr) => {
+                const existingIndex = acc.findIndex(item => item.title === curr.title);
+                if (existingIndex !== -1) {
+                    // Combine items and remove duplicates
+                    acc[existingIndex].items = [...new Set([...acc[existingIndex].items, ...curr.items])];
+                    // Merge sites if they exist
+                    if (curr.sites) {
+                        acc[existingIndex].sites = acc[existingIndex].sites || [];
+                        acc[existingIndex].sites = [...new Set([...acc[existingIndex].sites, ...curr.sites])]
+                    }
+                } else {
+                    // Add new indicator type
+                    acc.push({...curr, items: [...new Set(curr.items)]})
+                }
+                return acc;
+            }, [] as ParsedIndicators[]);
+            combinedIndicators = this.processExclusions(combinedIndicators);
+            resolve(combinedIndicators);
             return;
         });
     }
