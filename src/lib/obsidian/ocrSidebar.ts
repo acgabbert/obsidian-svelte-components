@@ -52,16 +52,18 @@ export class OcrSidebar extends IndicatorSidebar {
         }
         return new Promise(async (resolve) => {
             let attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
-            const results = await ocrMultiple(app, attachmentsToOcr, this.worker);
-            if (!results) {
-                resolve(retval);
-                return;
-            }
+            if (attachmentsToOcr.length > 0) {
+                const results = await ocrMultiple(app, attachmentsToOcr, this.worker);
+                if (!results) {
+                    resolve(retval);
+                    return;
+                }
 
-            // Parse OCR results and update cache
-            for (const [filename, ocrText] of results.entries()) {
-                const iocs = await this.getMatches(ocrText);
-                this.ocrCache.set(filename, iocs);
+                // Parse OCR results and update cache
+                for (const [filename, ocrText] of results.entries()) {
+                    const iocs = await this.getMatches(ocrText);
+                    this.ocrCache.set(filename, iocs);
+                }
             }
 
             // Combine all indicators from current attachments
