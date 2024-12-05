@@ -19,20 +19,20 @@
     {#await indicators}
         <p>Loading...</p>
     {:then indicators}
-        {#if hasIndicators(indicators)}
-            {#if !isCollapsed && indicators.length > 0}
-                <div class="ocr-content" transition:slide>
-                    {#each indicators as indicatorList}
-                        {#if indicatorList.items.length > 0}
-                            <IocList {indicatorList}/>
-                        {/if}
-                    {/each}
-                </div>
+        {#if !isCollapsed}
+            {#if hasIndicators(indicators)}
+                {#if !isCollapsed && indicators.length > 0}
+                    <div class="ocr-content" transition:slide>
+                        {#each indicators as indicatorList}
+                            {#if indicatorList.items.length > 0}
+                                <IocList {indicatorList}/>
+                            {/if}
+                        {/each}
+                    </div>
+                {/if}
+            {:else}
+                <i style="color: var(--text-muted);">No indicators found in attachment files.</i>
             {/if}
-        {:else}
-            <div class="empty-state">
-                No indicators found in attachment files.
-            </div>
         {/if}
     {/await}
 </div>
