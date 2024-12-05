@@ -40,6 +40,8 @@
 <style>
     .collapsible {
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
 
     .header-button {
@@ -47,12 +49,6 @@
         cursor: pointer;
         font-size: var(--h4-size);
         font-weight: var(--h4-weight);
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-muted);
-        font-style: italic;
+        margin-bottom: 0.5rem;
     }
 </style>
