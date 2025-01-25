@@ -1,9 +1,17 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, filterExclusions, getAttachments, HASH_REGEX, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, filterExclusions, getAttachments, HASH_REGEX, type IndicatorExclusion, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
 import { type Worker } from "tesseract.js"
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
+
+export const DEFAULT_IPv6_EXCLUSIONS: IndicatorExclusion[] = [
+    /^[a-f0-9]*::[a-f0-9]*$/i
+]
+
+export const DEFAULT_IPv4_EXCLUSIONS: IndicatorExclusion[] = [
+    /1\d{2}\.0\.0\.0/i  // chrome browser versions
+]
 
 export class IndicatorSidebar extends ItemView {
     sidebar: Sidebar | undefined;
