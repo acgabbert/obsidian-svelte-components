@@ -8,11 +8,11 @@ export const OCR_VIEW_TYPE = "ocr-indicator-sidebar";
 
 export class OcrSidebar extends IndicatorSidebar {
     attachments: string[];
-    worker: Worker;
+    worker: Worker | null;
     ocrIocs: Promise<ParsedIndicators[]> | null;
     ocrCache: Map<string, ParsedIndicators[]>;
 
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker: Worker) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker: Worker | null) {
         super(leaf, plugin);
         this.attachments = [];
         this.ocrIocs = null;
@@ -47,7 +47,7 @@ export class OcrSidebar extends IndicatorSidebar {
     async getOcrMatches(): Promise<ParsedIndicators[]> {
         const app = this.plugin?.app;
         let retval: ParsedIndicators[] = [];
-        if (!app || !this.plugin  || !this.worker /*|| !this.plugin.settings.enableOcr*/) {
+        if (!app || !this.plugin  || !this.worker) {
             return retval;
         }
         return new Promise(async (resolve) => {
@@ -114,7 +114,7 @@ export class OcrSidebar extends IndicatorSidebar {
         if (!this.plugin?.app) return;
         const fileContent = await this.readFile(file);
         this.iocs = await this.getMatches(fileContent);
-        if (!this.compareAttachments(file) /*&& this.plugin.settings.enableOcr*/) {
+        if (!this.compareAttachments(file)) {
             // attachments changed
             this.ocrIocs = this.getOcrMatches();
         }
@@ -129,6 +129,17 @@ export class OcrSidebar extends IndicatorSidebar {
             this.sidebar?.$set({
                 indicators: this.iocs
             });
+        }
+    }
+
+    /**
+     * Add a worker to the class and re-parse indicators.
+     * @param worker a tesseract.js worker
+     */
+    async updateWorker(worker: Worker) {
+        this.worker = worker;
+        if (this.currentFile) {
+            await this.parseIndicators(this.currentFile);
         }
     }
 }
