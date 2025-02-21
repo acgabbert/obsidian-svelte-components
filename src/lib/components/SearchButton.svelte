@@ -3,9 +3,18 @@
 
     export let site: SearchSite;
     export let indicator: string;
+
+    function craftSearchLink(site: SearchSite, indicator: string) {
+        return site.site.replace(
+            "%s",
+            site.urlEncodeSearchTerm ?
+                encodeURIComponent(indicator)
+                : indicator
+        );
+    }
 </script>
 
-<a href={site.site.replace('%s', indicator)}>
+<a href={craftSearchLink(site, indicator)}>
     <button title={site.name}>{site.shortName}</button>
 </a>
 

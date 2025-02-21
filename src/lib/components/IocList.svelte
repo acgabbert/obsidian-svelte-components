@@ -18,9 +18,22 @@
                     } else {
                         const url = multisearchLinks.get(site.shortName);
                         if (!url) {
-                            multisearchLinks.set(site.shortName, site.site.replace('%s', item));
+                            multisearchLinks.set(
+                                site.shortName,
+                                site.site.replace(
+                                    '%s',
+                                    site.urlEncodeSearchTerm ? 
+                                        encodeURIComponent(item)
+                                        : item
+                                )
+                            );
                         } else if (!url.includes(item)) {
-                            multisearchLinks.set(site.shortName, url + site.separator + item);
+                            multisearchLinks.set(
+                                site.shortName,
+                                url + site.separator + site.urlEncodeSearchTerm ?
+                                    encodeURIComponent(item)
+                                    : item
+                            );
                         }
                     }
                 })
