@@ -51,9 +51,15 @@ export class OcrSidebar extends IndicatorSidebar {
             return retval;
         }
         return new Promise(async (resolve) => {
-            let attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
+            const attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
             if (attachmentsToOcr.length > 0) {
-                const results = await ocrMultiple(app, attachmentsToOcr, this.worker);
+                let results: Map<string, string> | null;
+                try {
+                    results = await ocrMultiple(app, attachmentsToOcr, this.worker);
+                } catch(e) {
+                    console.error(e);
+                    results = null;
+                }
                 if (!results) {
                     resolve(retval);
                     return;
@@ -86,6 +92,7 @@ export class OcrSidebar extends IndicatorSidebar {
                 }
                 return acc;
             }, [] as ParsedIndicators[]);
+            
             combinedIndicators = this.processExclusions(combinedIndicators);
             resolve(combinedIndicators);
             return;
@@ -140,6 +147,25 @@ export class OcrSidebar extends IndicatorSidebar {
         this.worker = worker;
         if (this.currentFile) {
             await this.parseIndicators(this.currentFile);
+        }
+    }
+
+    /**
+     * Manually refresh the view
+     */
+    async refreshView() {
+       let file = this.app.workspace.getActiveFile();
+       if (file && file != this.currentFile) {
+            this.currentFile = file;
+            await this.parseIndicators(this.currentFile);
+       }
+    }
+
+    async onClose() {
+        if (this.sidebar) {
+            this.sidebar.$destroy();
+            this.sidebar = undefined;
+            this.plugin?.sidebarContainers?.delete(this.getViewType());
         }
     }
 }

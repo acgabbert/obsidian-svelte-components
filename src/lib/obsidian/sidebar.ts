@@ -31,7 +31,7 @@ export class IndicatorSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker?: Worker) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
         super(leaf);
         this.iocs = [];
         this.plugin = plugin;
