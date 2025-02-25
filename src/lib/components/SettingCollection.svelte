@@ -2,7 +2,7 @@
 Update a collection of boolean values at once using checkboxes.
 -->
 <script lang="ts">
-    import type { BooleanSetting } from "$lib/obsidian/settingCollectionModal.ts";
+    import type { BooleanSetting } from "../obsidian/settingCollectionModal.ts";
     import { createEventDispatcher } from "svelte";
     export let items: BooleanSetting[];
     export let title: string;

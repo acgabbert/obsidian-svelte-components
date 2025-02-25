@@ -1,4 +1,4 @@
-import LoadingMarkdown from "$lib/components/LoadingMarkdown.svelte";
+import LoadingMarkdown from "../components/LoadingMarkdown.svelte";
 import { App, Modal } from "obsidian";
 
 export class ApiResponseModal extends Modal {
