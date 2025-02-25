@@ -6,7 +6,7 @@
 	"license": "MIT",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build && npm run package",
+		"build": "npm run package",
 		"preview": "vite preview",
 		"package": "svelte-kit sync && svelte-package && publint",
 		"prepublishOnly": "npm run package",
@@ -17,6 +17,10 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"browser": "./dist/index.js",
+			"import": "./dist/index.js",
+			"module": "./dist/index.js",
+			"main": "./dist/index.js",
 			"svelte": "./dist/index.js",
 			"default": "./dist/index.d.ts"
 		}
@@ -26,11 +30,23 @@
 		"!dist/**/*.test.*",
 		"!dist/**/*.spec.*"
 	],
-	"peerDependencies": {
-		"svelte": "^4.0.0",
+	"repository": {
+	  "type": "git",
+	  "url": "git+https://github.com/acgabbert/obsidian-svelte-components.git"
+	},
+	"keywords": [
+	  "obsidian",
+	  "plugin",
+	  "cyber",
+	  "svelte"
+	],
+	"dependencies": {
 		"marked": "^14.1.3",
 		"obsidian-cyber-utils": "latest",
 		"tesseract.js": "4.1.1"
+	},
+	"peerDependencies": {
+		"svelte": "^4.0.0"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^3.0.0",
@@ -49,7 +65,5 @@
 		"vite": "^5.0.11",
 		"obsidian": "^1.8.7"
 	},
-	"svelte": "./dist/index.js",
-	"types": "./dist/index.d.ts",
 	"type": "module"
 }
