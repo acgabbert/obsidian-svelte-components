@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-svelte-components",
-	"version": "0.7.0",
+	"version": "0.8.0",
 	"description": "Svelte components for Obsidian plugin development.",
 	"author": "acgabbert",
 	"license": "MIT",
@@ -31,14 +31,14 @@
 		"!dist/**/*.spec.*"
 	],
 	"repository": {
-	  "type": "git",
-	  "url": "git+https://github.com/acgabbert/obsidian-svelte-components.git"
+		"type": "git",
+		"url": "git+https://github.com/acgabbert/obsidian-svelte-components.git"
 	},
 	"keywords": [
-	  "obsidian",
-	  "plugin",
-	  "cyber",
-	  "svelte"
+		"obsidian",
+		"plugin",
+		"cyber",
+		"svelte"
 	],
 	"dependencies": {
 		"marked": "^14.1.3",
