@@ -22,7 +22,8 @@
 			"module": "./dist/index.js",
 			"main": "./dist/index.js",
 			"svelte": "./dist/index.js",
-			"default": "./dist/index.d.ts"
+			"default": "./dist/index.d.ts",
+			"require": "./dist/index.js"
 		}
 	},
 	"files": [
