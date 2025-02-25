@@ -19,7 +19,7 @@
 			"types": "./dist/index.d.ts",
 			"browser": "./dist/index.js",
 			"import": "./dist/index.js",
-			"module": "./dist/index.js",
+			"module": "./dist/index.mjs",
 			"main": "./dist/index.js",
 			"svelte": "./dist/index.js",
 			"require": "./dist/index.js",
