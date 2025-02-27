@@ -185,14 +185,14 @@ export class OcrSidebar extends IndicatorSidebar {
         
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
-                target: this.contentEl,
+                target: this.sidebarTarget,
                 props: {
                     indicators: this.iocs
                 }
             });
 
             this.ocrListComponent = new OcrIocList({
-                target: this.contentEl,
+                target: this.sidebarTarget,
                 props: {
                     indicators: this.ocrIocs,
                     isLoading: this.isProcessing,
