@@ -30,9 +30,9 @@
                         } else if (!url.includes(item)) {
                             multisearchLinks.set(
                                 site.shortName,
-                                url + site.separator + site.urlEncodeSearchTerm ?
+                                url + site.separator + (site.urlEncodeSearchTerm ?
                                     encodeURIComponent(item)
-                                    : item
+                                    : item)
                             );
                         }
                     }
