@@ -18,6 +18,7 @@ export class IndicatorSidebar extends ItemView {
     iocs: ParsedIndicators[] | undefined;
     plugin: CyberPlugin | undefined;
     splitLocalIp: boolean;
+    sidebarTarget: HTMLElement = this.contentEl;
 
     currentFile: TFile | null;
 
@@ -31,7 +32,7 @@ export class IndicatorSidebar extends ItemView {
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
     
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, target?: HTMLElement) {
         super(leaf);
         this.iocs = [];
         this.plugin = plugin;
@@ -41,6 +42,7 @@ export class IndicatorSidebar extends ItemView {
             this.registerActiveFileListener();
             this.registerOpenFile();
         });
+        if (target) this.sidebarTarget = target;
     }
 
     getViewType(): string {
@@ -169,7 +171,7 @@ export class IndicatorSidebar extends ItemView {
         await this.getMatches(await this.readFile(file));
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
-                target: this.contentEl,
+                target: this.sidebarTarget,
                 props: {
                     indicators: this.iocs
                 }
@@ -186,6 +188,13 @@ export class IndicatorSidebar extends ItemView {
            this.sidebar?.$destroy();
            this.sidebar = undefined;
            this.plugin?.sidebarContainers?.delete(this.getViewType());
+        }
+    }
+
+    protected setSidebarTarget(el: HTMLElement) {
+        this.sidebarTarget = el;
+        if (this.sidebar) {
+            this.sidebar.$destroy();
         }
     }
 }
