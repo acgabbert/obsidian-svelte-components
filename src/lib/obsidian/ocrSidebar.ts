@@ -1,6 +1,6 @@
 import type { Worker } from "tesseract.js";
 import { IndicatorSidebar } from "./sidebar";
-import { getAttachments, ocrMultiple, type CyberPlugin, type ParsedIndicators } from "obsidian-cyber-utils";
+import { getAttachments, ocrMultiple, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider } from "obsidian-cyber-utils";
 import type { TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
 
@@ -8,20 +8,28 @@ export const OCR_VIEW_TYPE = "ocr-indicator-sidebar";
 
 export class OcrSidebar extends IndicatorSidebar {
     attachments: string[];
-    worker: Worker | null;
+    ocrProvider: OcrProvider;
     ocrIocs: Promise<ParsedIndicators[]> | null;
     ocrCache: Map<string, ParsedIndicators[]>;
 
-    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, worker: Worker | null) {
+    constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, ocrProvider?: OcrProvider | null, worker?: Worker | null) {
         super(leaf, plugin);
         this.attachments = [];
         this.ocrIocs = null;
-        this.worker = worker;
+        this.ocrCache = new Map<string, ParsedIndicators[]>();
+
+        if (!ocrProvider && worker) {
+            this.ocrProvider = new TesseractOcrProvider(worker, this.getMatches.bind(this));
+        } else if (!ocrProvider) {
+            this.ocrProvider = new EmptyOcrProvider();
+        } else {
+            this.ocrProvider = ocrProvider;
+        }
+
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
         });
-        this.ocrCache = new Map<string, ParsedIndicators[]>();
     }
 
     getViewType(): string {
@@ -47,27 +55,21 @@ export class OcrSidebar extends IndicatorSidebar {
     async getOcrMatches(): Promise<ParsedIndicators[]> {
         const app = this.plugin?.app;
         let retval: ParsedIndicators[] = [];
-        if (!app || !this.plugin  || !this.worker) {
+        if (!app || !this.plugin) {
             return retval;
         }
+
+        if (!this.ocrProvider.isReady()) {
+            return retval;
+        }
+
         return new Promise(async (resolve) => {
             const attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
             if (attachmentsToOcr.length > 0) {
-                let results: Map<string, string> | null;
-                try {
-                    results = await ocrMultiple(app, attachmentsToOcr, this.worker);
-                } catch(e) {
-                    console.error(e);
-                    results = null;
-                }
-                if (!results) {
-                    resolve(retval);
-                    return;
-                }
+                const results = await this.ocrProvider.processFiles(app, attachmentsToOcr);
 
                 // Parse OCR results and update cache
-                for (const [filename, ocrText] of results.entries()) {
-                    const iocs = await this.getMatches(ocrText);
+                for (const [filename, iocs] of results.entries()) {
                     this.ocrCache.set(filename, iocs);
                 }
             }
@@ -140,14 +142,26 @@ export class OcrSidebar extends IndicatorSidebar {
     }
 
     /**
+     * Update the OCR provider and refresh the view.
+     * @param ocrProvider the new OCR provider to use
+     */
+    async updateOcrProvider(ocrProvider: OcrProvider): Promise<void> {
+        this.ocrProvider = ocrProvider;
+        await this.refreshView();
+    }
+
+    /**
      * Add a worker to the class and re-parse indicators.
      * @param worker a tesseract.js worker
      */
-    async updateWorker(worker: Worker) {
-        this.worker = worker;
-        if (this.currentFile) {
-            await this.parseIndicators(this.currentFile);
+    async updateWorker(worker: Worker): Promise<void> {
+        // If the current provider is TesseractOcrProvider, update its worker
+        if (this.ocrProvider instanceof TesseractOcrProvider) {
+            this.ocrProvider.updateWorker(worker);
+        } else {
+            this.ocrProvider = new TesseractOcrProvider(worker, this.getMatches.bind(this));
         }
+        await this.refreshView();
     }
 
     /**
