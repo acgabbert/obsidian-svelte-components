@@ -1,10 +1,9 @@
 import type { Worker } from "tesseract.js";
 import { IndicatorSidebar } from "./sidebar";
-import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider } from "obsidian-cyber-utils";
-import type { App, TFile, WorkspaceLeaf } from "obsidian";
+import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider, type OcrTask } from "obsidian-cyber-utils";
+import { TFile, type App, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
 import OcrIocList from "../components/OcrIocList.svelte";
-import { ParallelOcrProvider } from "./parallelOcrProvider";
 
 export const OCR_VIEW_TYPE = "ocr-indicator-sidebar";
 
@@ -20,111 +19,34 @@ export interface OcrSidebarConfig {
 
 export class OcrSidebar extends IndicatorSidebar {
     attachments: string[];
-    ocrProvider: OcrProvider;
-    wrappedProvider: ParallelOcrProvider | null = null;
-    ocrIocs: ParsedIndicators[] = [];
-    ocrIocsPromise: Promise<ParsedIndicators[]> | null = null; // for backward compatibility
+    ocrProvider: OcrProvider | null;
+    ocrIocs: Promise<ParsedIndicators[]> | null;
     ocrCache: Map<string, ParsedIndicators[]>;
-    isProcessing: boolean = false;
-    progressStats: { total: number, completed: number } = { total: 0, completed: 0 };
-    ocrListComponent: OcrIocList | null = null;
-    config: OcrSidebarConfig;
-    protected currentProcessingOperation: { cancel: boolean } = { cancel: false };
+    processingTasks: Map<string, string>;
+    progressPercentage: number = 0;
+    isBusy: boolean = false;
+    ocrComponent: OcrIocList | undefined;
 
     constructor(
         leaf: WorkspaceLeaf,
         plugin: CyberPlugin,
-        ocrProvider?: OcrProvider | null,
-        worker?: Worker | null,
-        config?: Partial<OcrSidebarConfig>
+        ocrProvider: OcrProvider | null
     ) {
         super(leaf, plugin);
         this.attachments = [];
+        this.ocrIocs = null;
+        this.ocrProvider = ocrProvider;
         this.ocrCache = new Map<string, ParsedIndicators[]>();
+        this.processingTasks = new Map<string, string>();
 
-        // default config
-        this.config = {
-            processingMode: ProcessingMode.PARALLEL,
-            maxConcurrent: 3,
-            ...config
+        if (this.ocrProvider) {
+            this.ocrProvider.setProgressCallback(this.handleProgressUpdate.bind(this));
         }
-
-        // set up the base OCR provider
-        if (!ocrProvider && worker) {
-            this.ocrProvider = new TesseractOcrProvider(worker, this.getMatches.bind(this));
-        } else if (!ocrProvider) {
-            this.ocrProvider = new EmptyOcrProvider();
-        } else {
-            this.ocrProvider = ocrProvider;
-        }
-
-        this.createWrappedProvider();
 
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
         });
-    }
-
-    protected createWrappedProvider(): void {
-        const progressCallback: OcrProgressCallback = (completed, total, currentResults) => {
-            this.progressStats = {completed, total};
-
-            if (currentResults.size > 0) {
-                const allIndicators = this.attachments.flatMap(att => {
-                    if (currentResults.has(att)) {
-                        return currentResults.get(att) || [];
-                    }
-                    return this.ocrCache.get(att) || [];
-                });
-
-                this.ocrIocs = this.combineAndProcessIndicators(allIndicators);
-                this.updateOcrComponent();
-            }
-        }
-
-        this.wrappedProvider = new ParallelOcrProvider(
-            this.ocrProvider,
-            this.config.maxConcurrent,
-            progressCallback
-        )
-    }
-
-    /**
-     * Update the processing configuration
-     */
-    updateConfig(config: Partial<OcrSidebarConfig>): void {
-        this.config = {
-            ...this.config,
-            ...config
-        }
-
-        if (this.wrappedProvider) {
-            this.wrappedProvider.setMaxConcurrent(this.config.maxConcurrent);
-        }
-    }
-
-    protected combineAndProcessIndicators(indicators: ParsedIndicators[]): ParsedIndicators[] {
-        // Combine indicators by type and remove duplicates
-        let combinedIndicators = indicators.reduce((acc, curr) => {
-            const existingIndex = acc.findIndex(item => item.title === curr.title);
-            if (existingIndex !== -1) {
-                // Combine items and remove duplicates
-                acc[existingIndex].items = [...new Set([...acc[existingIndex].items, ...curr.items])];
-                // Merge sites if they exist
-                if (curr.sites) {
-                    acc[existingIndex].sites = acc[existingIndex].sites || [];
-                    acc[existingIndex].sites = [...new Set([...acc[existingIndex].sites, ...curr.sites])];
-                }
-            } else {
-                // Add new indicator type
-                acc.push({...curr, items: [...new Set(curr.items)]});
-            }
-            return acc;
-        }, [] as ParsedIndicators[]);
-        
-        // Apply exclusions
-        return this.processExclusions(combinedIndicators);        
     }
 
     getViewType(): string {
@@ -141,144 +63,126 @@ export class OcrSidebar extends IndicatorSidebar {
                 if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
                     this.currentFile = this.app.workspace.getActiveFile();
                     // reset state for new file
-                    this.ocrIocs = [];
-                    this.ocrIocsPromise = null;
-                    this.isProcessing = false;
-                    this.progressStats = {total: 0, completed: 0};
+                    console.log("resetting OCR IOCs");
+                    this.ocrIocs = null;
                     await this.parseIndicators(file);
                 }
             })
         );
     }
 
+    registerActiveFileListener() {
+        if (!this.plugin) return;
+        this.registerEvent(
+            this.plugin.app.vault.on('modify', async (file: TAbstractFile) => {
+                if (!this.plugin) return;
+                if (file === this.plugin.app.workspace.getActiveFile() && file instanceof TFile) {
+                    await this.parseIndicators(file);
+                }
+            })
+        );
+    }
+    
     /**
-     * Cancel the current processing operation
+     * Handle progress updates from the OCR provider
      */
-    protected cancelCurrentProcessing(): void {
-        if (this.isProcessing) {
-            this.currentProcessingOperation.cancel = true;
-            this.isProcessing = false;
-            this.updateOcrComponent();
-            console.debug("Cancelled ongoing OCR processing");
+    private handleProgressUpdate(overallProgress: number, completedTasks: number, totalTasks: number, currentTask?: OcrTask): void {
+        this.progressPercentage = overallProgress;
+        this.isBusy = completedTasks < totalTasks;
+
+        if (this.ocrComponent) {
+            this.ocrComponent.$set({
+                progress: {
+                    percentage: this.progressPercentage,
+                    isBusy: this.isBusy,
+                    completedTasks,
+                    totalTasks
+                }
+            });
+        }
+
+        if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
+            const filePath = currentTask.filePath;
+            this.ocrCache.set(filePath, currentTask.indicators);
         }
     }
     
-    async processOcrMatches(): Promise<ParsedIndicators[]> {
+    async getOcrMatches(): Promise<ParsedIndicators[]> {
+        console.log("entering ocr match function");
         const app = this.plugin?.app;
-        if (!app || !this.plugin || !this.wrappedProvider || !this.wrappedProvider.isReady()) {
-            return [];
+        let retval: ParsedIndicators[] = [];
+
+        if (!app || !this.plugin || !this.ocrProvider || !this.ocrProvider.isReady()) {
+            return retval;
         }
 
-        // create a reference to the current processing operation for cancellation
-        const processingOperation = this.currentProcessingOperation;
+        return new Promise(async (resolve) => {
+            const attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
+            console.log("found attachments to OCR: ", attachmentsToOcr)
 
-        this.isProcessing = true;
-        this.updateOcrComponent();
-
-        const cachedAttachments = this.attachments.filter(att => this.ocrCache.has(att));
-        if (cachedAttachments.length > 0) {
-            const cachedIndicators = cachedAttachments.flatMap(att => this.ocrCache.get(att) || []);
-            this.ocrIocs =this.combineAndProcessIndicators(cachedIndicators);
-            this.updateOcrComponent();
-        }
-
-        if (processingOperation.cancel) {
-            this.isProcessing = false;
-            this.updateOcrComponent();
-            return this.ocrIocs;
-        }
-
-        let attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
-
-        if (attachmentsToOcr.length > 0 && this.wrappedProvider) {
-            attachmentsToOcr = this.prioritizeAttachments(attachmentsToOcr);
-
-            this.progressStats = {total: attachmentsToOcr.length, completed: 0};
-            this.updateOcrComponent();
-
-            try {
-                const processingWithCancellation = async (filePaths: string[]): Promise<Map<string, ParsedIndicators[]>> => {
-                    const results = new Map<string, ParsedIndicators[]>();
-                    // Process files with cancellation checks
-                    for (let i = 0; i < filePaths.length; i += this.config.maxConcurrent) {
-                        if (!this.wrappedProvider || processingOperation.cancel) {
-                            break;
+            if (attachmentsToOcr.length > 0) {
+                this.isBusy = true;
+                if (this.ocrComponent) {
+                    this.ocrComponent.$set({
+                        progress: {
+                            percentage: 0,
+                            isBusy: this.isBusy,
+                            completedTasks: 0,
+                            totalTasks: attachmentsToOcr.length
                         }
+                    });
+                }
 
-                        const batchFiles = filePaths.slice(i, i + this.config.maxConcurrent);
-                        const batchResults = await this.wrappedProvider.processFiles(app, batchFiles);
+                try {
+                    console.log("processing via OCR:", attachmentsToOcr);
+                    const results = await this.ocrProvider?.processFiles(app, attachmentsToOcr);
 
-                        // merge batch results into overall results
-                        for (const [path, indicators] of batchResults?.entries()) {
-                            results.set(path, indicators);
+                    if (!results) return retval;
 
-                            // update the cache immediately for each processed file
-                            this.ocrCache.set(path, indicators);
-
-                            // update the UI with the latest combined results
-                            const allIndicators = this.attachments
-                                .filter(att => this.ocrCache.has(att))
-                                .flatMap(att => this.ocrCache.get(att) || []);
-                            
-                            this.ocrIocs = this.combineAndProcessIndicators(allIndicators);
-                            this.updateOcrComponent();
-                        }
-
-                        // check for cancellation after processing each batch
-                        if (processingOperation.cancel) {
-                            break;
-                        }
+                    for (const [filePath, indicators] of results?.entries()) {
+                        this.ocrCache.set(filePath, indicators);
                     }
-
-                    return results;
-                };
-
-                await processingWithCancellation(attachmentsToOcr);
-            } catch (error) {
-                console.error("Error processing OCR matches:", error);
+                } catch (e) {
+                    console.error("Error during OCR processing:", e);
+                } finally {
+                    this.isBusy = false;
+                    if (this.ocrComponent) {
+                        this.ocrComponent.$set({
+                            progress: {
+                                percentage: 100,
+                                isBusy: false,
+                                completedTasks: attachmentsToOcr.length,
+                                totalTasks: attachmentsToOcr.length
+                            }
+                        });
+                    }
+                }
             }
-        }
 
-        if (!processingOperation.cancel) {
-            this.isProcessing = false;
-            this.updateOcrComponent();
-        }
+            // Combine all indicators from current attachments
+            const allIndicators = this.attachments.flatMap(att => this.ocrCache.get(att) || []);
 
-        return this.ocrIocs;
-    }
+            // Combine indicators by type and remove duplicates
+            let combinedIndicators = allIndicators.reduce((acc, curr) => {
+                const existingIndex = acc.findIndex(item => item.title === curr.title);
+                if (existingIndex !== -1) {
+                    // Combine items and remove duplicates
+                    acc[existingIndex].items = [...new Set([...acc[existingIndex].items, ...curr.items])];
+                    // Merge sites if they exist
+                    if (curr.sites) {
+                        acc[existingIndex].sites = acc[existingIndex].sites || [];
+                        acc[existingIndex].sites = [...new Set([...acc[existingIndex].sites, ...curr.sites])];
+                    }
+                } else {
+                    // Add new indicator type
+                    acc.push({...curr, items: [...new Set(curr.items)]});
+                }
+                return acc;
+            }, [] as ParsedIndicators[]);
 
-    /**
-     * Prioritize attachments to optimize processing order
-     * @param attachments list of attachments to prioritize
-     * @returns prioritized list of attachments
-     */
-    protected prioritizeAttachments(attachments: string[]): string[] {
-        if (!attachments.length) return attachments;
-
-        const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff'];
-
-        return [...attachments].sort((a, b) => {
-            const aExt = a.toLowerCase().substring(a.lastIndexOf('.'));
-            const bExt = b.toLowerCase().substring(b.lastIndexOf('.'));
-
-            const aIsImage = imageExtensions.includes(aExt);
-            const bIsImage = imageExtensions.includes(bExt);
-
-            if (aIsImage && !bIsImage) return -1;
-            if (!aIsImage && bIsImage) return 1;
-
-            return a.localeCompare(b);
-        })
-    }
-
-    protected updateOcrComponent(): void {
-        if (this.ocrListComponent) {
-            this.ocrListComponent.$set({
-                indicators: this.ocrIocs,
-                isLoading: this.isProcessing,
-                progressStats: this.progressStats
-            })
-        }
+            combinedIndicators = this.processExclusions(combinedIndicators);
+            resolve(combinedIndicators);
+        });
     }
 
     /**
@@ -289,17 +193,16 @@ export class OcrSidebar extends IndicatorSidebar {
     private compareAttachments(file: TFile): boolean {
         if (!this.plugin?.app) return true;
         const attachments = getAttachments(file.path, this.plugin.app);
+        console.log("getting attachments", attachments);
         const set1 = new Set(attachments);
         const set2 = new Set(this.attachments);
 
         const unchanged = set1.size === set2.size && [...set1].every(item => set2.has(item));
+        
         if (!unchanged) {
-            // Attachments have changed, clear processing state
-            this.cancelCurrentProcessing();
-            
             this.attachments = attachments;
         }
-
+        console.log("returning attachments changed: ", unchanged);
         return unchanged;
     }
 
@@ -311,7 +214,15 @@ export class OcrSidebar extends IndicatorSidebar {
         this.iocs = await this.getMatches(fileContent);
         
         const attachmentsChanged = !this.compareAttachments(file);
-        
+        console.log("attachments changed? ", attachmentsChanged);
+        if (attachmentsChanged) {
+            if (this.ocrProvider) {
+                this.ocrProvider.cancel();
+            }
+
+            this.ocrIocs = this.getOcrMatches();
+        }
+
         if (!this.sidebar && this.iocs) {
             this.sidebar = new Sidebar({
                 target: this.sidebarTarget,
@@ -320,63 +231,68 @@ export class OcrSidebar extends IndicatorSidebar {
                 }
             });
 
-            this.ocrListComponent = new OcrIocList({
+            this.ocrComponent = new OcrIocList({
                 target: this.sidebarTarget,
                 props: {
-                    indicators: this.ocrIocs,
-                    isLoading: this.isProcessing,
-                    progressStats: this.progressStats
+                    indicators: this.ocrIocs ?? [],
+                    progress: {
+                        percentage: this.progressPercentage,
+                        isBusy: this.isBusy,
+                        completedTasks: 0,
+                        totalTasks: 0
+                    }
                 }
             });
         } else {
             this.sidebar?.$set({
                 indicators: this.iocs
             });
-        }
 
-        if (attachmentsChanged) {
-            this.ocrIocsPromise = this.processOcrMatches();
+            this.ocrComponent?.$set({
+                indicators: this.ocrIocs ?? [],
+                progress: {
+                    percentage: this.progressPercentage,
+                    isBusy: this.isBusy,
+                    completedTasks: 0,
+                    totalTasks: 0
+                }
+            })
         }
     }
 
     /**
-     * Update the OCR provider and refresh the view.
+     * Update the OCR provider and re-parse indicators
      * @param ocrProvider the new OCR provider to use
      */
-    async updateOcrProvider(ocrProvider: OcrProvider): Promise<void> {
-        this.ocrProvider = ocrProvider;
-        this.createWrappedProvider();
-        await this.refreshView();
-    }
-
-    /**
-     * Add a worker to the class and re-parse indicators.
-     * @param worker a tesseract.js worker
-     */
-    async updateWorker(worker: Worker): Promise<void> {
-        // If the current provider is TesseractOcrProvider, update its worker
-        if (this.ocrProvider instanceof TesseractOcrProvider) {
-            this.ocrProvider.updateWorker(worker);
-        } else {
-            this.ocrProvider = new TesseractOcrProvider(worker, this.getMatches.bind(this));
+    async updateOcrProvider(provider: OcrProvider): Promise<void> {
+        // Cancel any ongoing OCR operations
+        if (this.ocrProvider) {
+            this.ocrProvider.setProgressCallback(() => null);
+            this.ocrProvider.cancel();
         }
-        this.createWrappedProvider();
-        await this.refreshView();
-    }
 
-    /**
-     * Reset the OCR state completely, clearing the cache and all indicators
-     */
-    resetOcrState(): void {
-        this.cancelCurrentProcessing();
-        this.ocrCache.clear();
-        this.ocrIocs = [];
-        this.progressStats = { total: 0, completed: 0 };
+        this.ocrProvider = provider;
 
-        this.updateOcrComponent();
+        if (this.ocrProvider) {
+            this.ocrProvider.setProgressCallback(this.handleProgressUpdate.bind(this));
+        }
 
         if (this.currentFile) {
-            this.refreshView();
+            await this.parseIndicators(this.currentFile);
+        }
+    }
+
+    protected updateOcrComponent(): void {
+        if (this.ocrComponent && this.ocrIocs) {
+            this.ocrComponent.$set({
+                indicators: this.ocrIocs,
+                progress: {
+                    percentage: this.progressPercentage,
+                    isBusy: this.isBusy,
+                    completedTasks: 0,
+                    totalTasks: 0
+                }
+            })
         }
     }
 
@@ -392,85 +308,19 @@ export class OcrSidebar extends IndicatorSidebar {
     }
 
     async onClose() {
+        if (this.ocrProvider) {
+            this.ocrProvider.cancel();
+        }
+
+        if (this.ocrComponent) {
+            this.ocrComponent.$destroy();
+            this.ocrComponent = undefined;
+        }
+
         if (this.sidebar) {
             this.sidebar.$destroy();
             this.sidebar = undefined;
             this.plugin?.sidebarContainers?.delete(this.getViewType());
         }
-    }
-}
-
-export type OcrProgressCallback = (completed: number, total: number, results: Map<string, ParsedIndicators[]>) => void;
-
-/**
- * Wrapper for OcrProvider to support incremental processing and progress updates.
- */
-class IncrementalOcrProvider implements OcrProvider {
-    private baseProvider: OcrProvider;
-    private progressCallback: OcrProgressCallback | null = null;
-
-    constructor(baseProvider: OcrProvider, progressCallback?: OcrProgressCallback) {
-        this.baseProvider = baseProvider;
-        if (progressCallback) {
-            this.progressCallback = progressCallback;
-        }
-    }
-    
-    /**
-     * Check if the underlying OCR provider is ready
-     */
-    isReady(): boolean {
-        return this.baseProvider.isReady();
-    }
-    
-    /**
-     * Process files incrementally, calling the progress callback after each file
-     */
-    async processFiles(app: App, filePaths: string[]): Promise<Map<string, ParsedIndicators[]>> {
-        const results = new Map<string, ParsedIndicators[]>();
-        
-        // If the provider is not ready or there are no files, return empty results
-        if (!this.isReady() || filePaths.length === 0) {
-            return results;
-        }
-        
-        // Process each file one by one
-        for (let i = 0; i < filePaths.length; i++) {
-            const filePath = filePaths[i];
-            
-            try {
-                // Process a single file using the base provider
-                const singleFileResult = await this.baseProvider.processFiles(app, [filePath]);
-                
-                // Add results to our accumulated results
-                for (const [path, indicators] of singleFileResult.entries()) {
-                    results.set(path, indicators);
-                }
-                
-                // Call progress callback if provided
-                if (this.progressCallback) {
-                    this.progressCallback(i + 1, filePaths.length, new Map(results));
-                }
-            } catch (error) {
-                console.error(`Error processing file ${filePath}:`, error);
-                // Continue with the next file even if this one failed
-            }
-        }
-        
-        return results;
-    }
-    
-    /**
-     * Set a new progress callback
-     */
-    setProgressCallback(callback: OcrProgressCallback | null): void {
-        this.progressCallback = callback;
-    }
-    
-    /**
-     * Pass through to the underlying provider for any provider-specific methods
-     */
-    getBaseProvider(): OcrProvider {
-        return this.baseProvider;
     }
 }
