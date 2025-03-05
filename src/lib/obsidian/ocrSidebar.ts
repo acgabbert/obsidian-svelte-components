@@ -17,15 +17,27 @@ export interface OcrSidebarConfig {
     maxConcurrent: number
 }
 
+export interface ProgressStats {
+    completedTasks: number;
+    totalTasks: number;
+    percentage: number;
+}
+
 export class OcrSidebar extends IndicatorSidebar {
     attachments: string[];
+    pendingAttachments: Set<string> = new Set();
     ocrProvider: OcrProvider | null;
-    ocrIocs: Promise<ParsedIndicators[]> | null;
+    ocrIocs: ParsedIndicators[] | null;
     ocrCache: Map<string, ParsedIndicators[]>;
     processingTasks: Map<string, string>;
     progressPercentage: number = 0;
     isBusy: boolean = false;
     ocrComponent: OcrIocList | undefined;
+    progressStats: ProgressStats = {
+        completedTasks: 0,
+        totalTasks: 0,
+        percentage: 0
+    }
 
     constructor(
         leaf: WorkspaceLeaf,
@@ -46,6 +58,15 @@ export class OcrSidebar extends IndicatorSidebar {
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
+
+            // Handle initial file - this fixes the blank sidebar on startup
+            const initialFile = this.app.workspace.getActiveFile();
+            if (initialFile) {
+                this.currentFile = initialFile;
+                this.parseIndicators(initialFile).catch(e => {
+                    console.error("Error processing initial file:", e);
+                });
+            }
         });
     }
 
@@ -61,6 +82,7 @@ export class OcrSidebar extends IndicatorSidebar {
         this.registerEvent(
             this.app.workspace.on('file-open', async (file: TFile | null) => {
                 if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
+                    this.ocrProvider?.cancel();
                     this.currentFile = this.app.workspace.getActiveFile();
                     // reset state for new file
                     console.log("resetting OCR IOCs");
@@ -87,102 +109,122 @@ export class OcrSidebar extends IndicatorSidebar {
      * Handle progress updates from the OCR provider
      */
     private handleProgressUpdate(overallProgress: number, completedTasks: number, totalTasks: number, currentTask?: OcrTask): void {
-        this.progressPercentage = overallProgress;
+        this.progressStats = {
+            completedTasks: completedTasks,
+            totalTasks: totalTasks,
+            percentage: overallProgress
+        };
         this.isBusy = completedTasks < totalTasks;
 
+        if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
+            const filePath = currentTask.filePath;
+            this.ocrCache.set(filePath, currentTask.indicators);
+            this.pendingAttachments.delete(filePath);
+
+            this.updateIncrementalResults();
+        } else if (currentTask && (currentTask.status === 'failed' || currentTask.status === 'cancelled')) {
+            this.pendingAttachments.delete(currentTask.filePath);
+        }
+
         if (this.ocrComponent) {
+            console.log("updating the component");
             this.ocrComponent.$set({
-                progress: {
-                    percentage: this.progressPercentage,
-                    isBusy: this.isBusy,
-                    completedTasks,
-                    totalTasks
-                }
+                isBusy: this.isBusy,
+                progress: this.progressStats
             });
         }
 
         if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
             const filePath = currentTask.filePath;
             this.ocrCache.set(filePath, currentTask.indicators);
+            if (this.ocrComponent && this.ocrIocs) {
+                this.ocrComponent?.$set({
+                    indicators: this.ocrIocs
+                });
+            }
         }
     }
+
+    /**
+     * Update results incrementally as tasks complete
+     */
+    private updateIncrementalResults(): void {
+        const allIndicators = this.attachments
+            .filter(att => this.ocrCache.has(att))
+            .flatMap(att => this.ocrCache.get(att) || []);
+        
+        let combinedIndicators = allIndicators.reduce((acc, curr) => {
+            const existingIndex = acc.findIndex(item => item.title === curr.title);
+            if (existingIndex !== -1) {
+                // Combine items and remove duplicates
+                acc[existingIndex].items = [...new Set([...acc[existingIndex].items, ...curr.items])];
+                // Merge sites if they exist
+                if (curr.sites) {
+                    acc[existingIndex].sites = acc[existingIndex].sites || [];
+                    acc[existingIndex].sites = [...new Set([...acc[existingIndex].sites, ...curr.sites])];
+                }
+            } else {
+                // Add new indicator type
+                acc.push({...curr, items: [...new Set(curr.items)]});
+            }
+            return acc;
+        }, [] as ParsedIndicators[]);
+        
+        combinedIndicators = this.processExclusions(combinedIndicators);
+        this.ocrIocs = combinedIndicators;
+    }
     
-    async getOcrMatches(): Promise<ParsedIndicators[]> {
+    async getOcrMatches(): Promise<void> {
         console.log("entering ocr match function");
         const app = this.plugin?.app;
-        let retval: ParsedIndicators[] = [];
 
         if (!app || !this.plugin || !this.ocrProvider || !this.ocrProvider.isReady()) {
-            return retval;
+            return;
         }
 
-        return new Promise(async (resolve) => {
-            const attachmentsToOcr = this.attachments.filter(att => !this.ocrCache.has(att));
-            console.log("found attachments to OCR: ", attachmentsToOcr)
+        try {
+            this.isBusy = true;
+            const attachmentsToOcr = this.attachments.filter(att =>
+                !this.ocrCache.has(att) && !this.pendingAttachments.has(att)
+            );
+            console.log("found attachments to OCR: ", attachmentsToOcr);
 
             if (attachmentsToOcr.length > 0) {
-                this.isBusy = true;
+                attachmentsToOcr.forEach(att => this.pendingAttachments.add(att));
+                this.progressStats = {
+                    completedTasks: 0,
+                    totalTasks: attachmentsToOcr.length,
+                    percentage: 0
+                };
                 if (this.ocrComponent) {
                     this.ocrComponent.$set({
-                        progress: {
-                            percentage: 0,
-                            isBusy: this.isBusy,
-                            completedTasks: 0,
-                            totalTasks: attachmentsToOcr.length
-                        }
-                    });
+                        isBusy: this.isBusy,
+                        progress: this.progressStats
+                    })
                 }
-
-                try {
-                    console.log("processing via OCR:", attachmentsToOcr);
-                    const results = await this.ocrProvider?.processFiles(app, attachmentsToOcr);
-
-                    if (!results) return retval;
-
-                    for (const [filePath, indicators] of results?.entries()) {
-                        this.ocrCache.set(filePath, indicators);
-                    }
-                } catch (e) {
-                    console.error("Error during OCR processing:", e);
-                } finally {
-                    this.isBusy = false;
-                    if (this.ocrComponent) {
-                        this.ocrComponent.$set({
-                            progress: {
-                                percentage: 100,
-                                isBusy: false,
-                                completedTasks: attachmentsToOcr.length,
-                                totalTasks: attachmentsToOcr.length
-                            }
-                        });
-                    }
+                console.log("processing via OCR:", attachmentsToOcr);
+                const results = await this.ocrProvider?.processFiles(app, attachmentsToOcr);
+            } else {
+                this.updateIncrementalResults();
+            }
+        } catch (e) {
+            console.error("Error during OCR processing:", e);
+        } finally {
+            if (this.pendingAttachments.size === 0) {
+                this.progressStats = {
+                    percentage: 100,
+                    totalTasks: 0,
+                    completedTasks: 0
+                }
+                this.isBusy = false;
+                if (this.ocrComponent) {
+                    this.ocrComponent.$set({
+                        isBusy: false,
+                        progress: this.progressStats
+                    })
                 }
             }
-
-            // Combine all indicators from current attachments
-            const allIndicators = this.attachments.flatMap(att => this.ocrCache.get(att) || []);
-
-            // Combine indicators by type and remove duplicates
-            let combinedIndicators = allIndicators.reduce((acc, curr) => {
-                const existingIndex = acc.findIndex(item => item.title === curr.title);
-                if (existingIndex !== -1) {
-                    // Combine items and remove duplicates
-                    acc[existingIndex].items = [...new Set([...acc[existingIndex].items, ...curr.items])];
-                    // Merge sites if they exist
-                    if (curr.sites) {
-                        acc[existingIndex].sites = acc[existingIndex].sites || [];
-                        acc[existingIndex].sites = [...new Set([...acc[existingIndex].sites, ...curr.sites])];
-                    }
-                } else {
-                    // Add new indicator type
-                    acc.push({...curr, items: [...new Set(curr.items)]});
-                }
-                return acc;
-            }, [] as ParsedIndicators[]);
-
-            combinedIndicators = this.processExclusions(combinedIndicators);
-            resolve(combinedIndicators);
-        });
+        }
     }
 
     /**
@@ -216,11 +258,7 @@ export class OcrSidebar extends IndicatorSidebar {
         const attachmentsChanged = !this.compareAttachments(file);
         console.log("attachments changed? ", attachmentsChanged);
         if (attachmentsChanged) {
-            if (this.ocrProvider) {
-                this.ocrProvider.cancel();
-            }
-
-            this.ocrIocs = this.getOcrMatches();
+            this.getOcrMatches();
         }
 
         if (!this.sidebar && this.iocs) {
@@ -230,32 +268,24 @@ export class OcrSidebar extends IndicatorSidebar {
                     indicators: this.iocs
                 }
             });
-
-            this.ocrComponent = new OcrIocList({
-                target: this.sidebarTarget,
-                props: {
-                    indicators: this.ocrIocs ?? [],
-                    progress: {
-                        percentage: this.progressPercentage,
-                        isBusy: this.isBusy,
-                        completedTasks: 0,
-                        totalTasks: 0
-                    }
-                }
-            });
         } else {
             this.sidebar?.$set({
                 indicators: this.iocs
             });
-
-            this.ocrComponent?.$set({
-                indicators: this.ocrIocs ?? [],
-                progress: {
-                    percentage: this.progressPercentage,
+        }
+        if (!this.ocrComponent) {
+            this.ocrComponent = new OcrIocList({
+                target: this.sidebarTarget,
+                props: {
+                    indicators: this.ocrIocs,
                     isBusy: this.isBusy,
-                    completedTasks: 0,
-                    totalTasks: 0
+                    progress: this.progressStats
                 }
+            });
+        }
+        if (this.ocrIocs) {
+            this.ocrComponent?.$set({
+                indicators: this.ocrIocs ?? []
             })
         }
     }
@@ -269,6 +299,7 @@ export class OcrSidebar extends IndicatorSidebar {
         if (this.ocrProvider) {
             this.ocrProvider.setProgressCallback(() => null);
             this.ocrProvider.cancel();
+            this.pendingAttachments.clear();
         }
 
         this.ocrProvider = provider;
@@ -279,20 +310,6 @@ export class OcrSidebar extends IndicatorSidebar {
 
         if (this.currentFile) {
             await this.parseIndicators(this.currentFile);
-        }
-    }
-
-    protected updateOcrComponent(): void {
-        if (this.ocrComponent && this.ocrIocs) {
-            this.ocrComponent.$set({
-                indicators: this.ocrIocs,
-                progress: {
-                    percentage: this.progressPercentage,
-                    isBusy: this.isBusy,
-                    completedTasks: 0,
-                    totalTasks: 0
-                }
-            })
         }
     }
 
@@ -310,6 +327,7 @@ export class OcrSidebar extends IndicatorSidebar {
     async onClose() {
         if (this.ocrProvider) {
             this.ocrProvider.cancel();
+            this.pendingAttachments.clear();
         }
 
         if (this.ocrComponent) {
