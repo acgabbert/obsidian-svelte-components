@@ -82,10 +82,11 @@ export class OcrSidebar extends IndicatorSidebar {
         this.registerEvent(
             this.app.workspace.on('file-open', async (file: TFile | null) => {
                 if (file && file === this.app.workspace.getActiveFile() && file != this.currentFile) {
-                    this.ocrProvider?.cancel();
+                    // Cancel operations and reset state
+                    this.cancelAndResetState();
+
                     this.currentFile = this.app.workspace.getActiveFile();
                     // reset state for new file
-                    console.log("resetting OCR IOCs");
                     this.ocrIocs = null;
                     await this.parseIndicators(file);
                 }
@@ -127,7 +128,6 @@ export class OcrSidebar extends IndicatorSidebar {
         }
 
         if (this.ocrComponent) {
-            console.log("updating the component");
             this.ocrComponent.$set({
                 isBusy: this.isBusy,
                 progress: this.progressStats
@@ -142,6 +142,39 @@ export class OcrSidebar extends IndicatorSidebar {
                     indicators: this.ocrIocs
                 });
             }
+        }
+    }
+
+    /**
+     * Reset progress stats to initial state
+     */
+    private resetProgressStats(): void {
+        this.progressStats = {
+            completedTasks: 0,
+            totalTasks: 0,
+            percentage: 0
+        };
+        this.isBusy = false;
+    }
+
+    /**
+     * Cancel OCR operations and reset all state
+     */
+    private cancelAndResetState(): void {
+        if (this.ocrProvider) {
+            console.log("cancelling OCR operations and resetting state");
+            this.ocrProvider.cancel();
+        }
+
+        this.pendingAttachments.clear();
+        this.resetProgressStats();
+
+        if (this.ocrComponent) {
+            this.ocrComponent.$set({
+                isBusy: false,
+                progress: this.progressStats,
+                indicators: this.ocrIocs
+            });
         }
     }
 
@@ -175,7 +208,6 @@ export class OcrSidebar extends IndicatorSidebar {
     }
     
     async getOcrMatches(): Promise<void> {
-        console.log("entering ocr match function");
         const app = this.plugin?.app;
 
         if (!app || !this.plugin || !this.ocrProvider || !this.ocrProvider.isReady()) {
@@ -187,7 +219,9 @@ export class OcrSidebar extends IndicatorSidebar {
             const attachmentsToOcr = this.attachments.filter(att =>
                 !this.ocrCache.has(att) && !this.pendingAttachments.has(att)
             );
-            console.log("found attachments to OCR: ", attachmentsToOcr);
+
+            // update results for any files already in the cache
+            this.updateIncrementalResults();
 
             if (attachmentsToOcr.length > 0) {
                 attachmentsToOcr.forEach(att => this.pendingAttachments.add(att));
@@ -235,7 +269,6 @@ export class OcrSidebar extends IndicatorSidebar {
     private compareAttachments(file: TFile): boolean {
         if (!this.plugin?.app) return true;
         const attachments = getAttachments(file.path, this.plugin.app);
-        console.log("getting attachments", attachments);
         const set1 = new Set(attachments);
         const set2 = new Set(this.attachments);
 
@@ -244,7 +277,6 @@ export class OcrSidebar extends IndicatorSidebar {
         if (!unchanged) {
             this.attachments = attachments;
         }
-        console.log("returning attachments changed: ", unchanged);
         return unchanged;
     }
 
@@ -256,7 +288,6 @@ export class OcrSidebar extends IndicatorSidebar {
         this.iocs = await this.getMatches(fileContent);
         
         const attachmentsChanged = !this.compareAttachments(file);
-        console.log("attachments changed? ", attachmentsChanged);
         if (attachmentsChanged) {
             this.getOcrMatches();
         }
@@ -298,9 +329,9 @@ export class OcrSidebar extends IndicatorSidebar {
         // Cancel any ongoing OCR operations
         if (this.ocrProvider) {
             this.ocrProvider.setProgressCallback(() => null);
-            this.ocrProvider.cancel();
-            this.pendingAttachments.clear();
         }
+        
+        this.cancelAndResetState();
 
         this.ocrProvider = provider;
 
@@ -317,11 +348,11 @@ export class OcrSidebar extends IndicatorSidebar {
      * Manually refresh the view
      */
     async refreshView() {
-       let file = this.app.workspace.getActiveFile();
-       if (file && file != this.currentFile) {
+        let file = this.app.workspace.getActiveFile();
+        if (file && file != this.currentFile) {
             this.currentFile = file;
             await this.parseIndicators(this.currentFile);
-       }
+        }
     }
 
     async onClose() {
