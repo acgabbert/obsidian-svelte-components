@@ -39,6 +39,8 @@ export class OcrSidebar extends IndicatorSidebar {
         percentage: 0
     }
 
+    viewType: string = OCR_VIEW_TYPE;
+
     constructor(
         leaf: WorkspaceLeaf,
         plugin: CyberPlugin,
@@ -54,24 +56,6 @@ export class OcrSidebar extends IndicatorSidebar {
         if (this.ocrProvider) {
             this.ocrProvider.setProgressCallback(this.handleProgressUpdate.bind(this));
         }
-
-        this.plugin?.app.workspace.onLayoutReady(() => {
-            this.registerActiveFileListener();
-            this.registerOpenFile();
-
-            // Handle initial file - this fixes the blank sidebar on startup
-            const initialFile = this.app.workspace.getActiveFile();
-            if (initialFile) {
-                this.currentFile = initialFile;
-                this.parseIndicators(initialFile).catch(e => {
-                    console.error("Error processing initial file:", e);
-                });
-            }
-        });
-    }
-
-    getViewType(): string {
-        return OCR_VIEW_TYPE;
     }
 
     getDisplayText(): string {

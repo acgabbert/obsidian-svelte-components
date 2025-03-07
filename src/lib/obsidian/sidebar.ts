@@ -31,6 +31,8 @@ export class IndicatorSidebar extends ItemView {
     hashRegex = HASH_REGEX;
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
+
+    viewType: string = DEFAULT_VIEW_TYPE;
     
     constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, target?: HTMLElement) {
         super(leaf);
@@ -38,15 +40,29 @@ export class IndicatorSidebar extends ItemView {
         this.plugin = plugin;
         this.splitLocalIp = true;
         this.currentFile = null;
+
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
+
+            // Handle initial file - this fixes the blank sidebar on startup
+            const initialFile = this.app.workspace.getActiveFile();
+            if (initialFile) {
+                this.currentFile = initialFile;
+                this.parseIndicators(initialFile).catch(e => {
+                    console.error("Error processing initial file:", e);
+                });
+            }
         });
         if (target) this.sidebarTarget = target;
     }
 
     getViewType(): string {
-        return DEFAULT_VIEW_TYPE;
+        return this.viewType;
+    }
+
+    setViewType(viewType: string): void {
+        this.viewType = viewType;
     }
 
     getDisplayText(): string {
