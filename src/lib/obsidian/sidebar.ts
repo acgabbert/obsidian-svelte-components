@@ -100,31 +100,31 @@ export class IndicatorSidebar extends ItemView {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipExclusions ?? []
+            exclusions: this.ipExclusions ?? this.plugin?.exclusions?.ipv4Exclusions ?? []
         }
         const domains: ParsedIndicators = {
             title: "Domains",
             items: extractMatches(fileContent, this.domainRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain),
-            exclusions: this.domainExclusions ?? []
+            exclusions: this.domainExclusions ?? this.plugin?.exclusions?.domainExclusions ?? []
         }
         const hashes: ParsedIndicators = {
             title: "Hashes",
             items: extractMatches(fileContent, this.hashRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash),
-            exclusions: this.hashExclusions ?? []
+            exclusions: this.hashExclusions ?? this.plugin?.exclusions?.hashExclusions ?? []
         }
         const privateIps: ParsedIndicators = {
             title: "IPs (Private)",
             items: [],
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipExclusions ?? []
+            exclusions: this.ipExclusions ?? this.plugin?.exclusions?.ipv4Exclusions ?? []
         }
         const ipv6: ParsedIndicators = {
             title: "IPv6",
             items: extractMatches(fileContent, this.ipv6Regex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipv6Exclusions ?? []
+            exclusions: this.ipv6Exclusions ?? this.plugin?.exclusions?.ipv6Exclusions ?? []
         }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);

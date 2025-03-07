@@ -1,6 +1,6 @@
 import type { Worker } from "tesseract.js";
 import { IndicatorSidebar } from "./sidebar";
-import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider, type OcrTask } from "obsidian-cyber-utils";
+import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider, type OcrTask, processExclusions } from "obsidian-cyber-utils";
 import { TFile, type App, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
 import OcrIocList from "../components/OcrIocList.svelte";
@@ -105,11 +105,65 @@ export class OcrSidebar extends IndicatorSidebar {
             })
         );
     }
+
+    /**
+     * Update progress stats to reflect both cached and pending attachments
+     */
+    private updateProgressStats(): void {
+        // count attachments that are already processed (in cache)
+        const cachedAttachments = this.attachments.filter(att => this.ocrCache.has(att));
+        const cachedCount = cachedAttachments.length;
+
+        // count attachments that are currently pending
+        const pendingCount = this.pendingAttachments.size;
+        
+        // total is the sum of both
+        const totalAttachments = cachedCount + pendingCount;
+
+        const percentage = totalAttachments > 0
+            ? (cachedCount / totalAttachments) * 100
+            : 0;
+        
+        this.progressStats = {
+            completedTasks: cachedCount,
+            totalTasks: totalAttachments,
+            percentage: percentage
+        };
+
+        this.isBusy = pendingCount > 0;
+
+        if (this.ocrComponent) {
+            this.ocrComponent.$set({
+                isBusy: this.isBusy,
+                progress: this.progressStats
+            });
+        }
+    }
     
     /**
      * Handle progress updates from the OCR provider
      */
     private handleProgressUpdate(overallProgress: number, completedTasks: number, totalTasks: number, currentTask?: OcrTask): void {
+        // Only update if we're processing attachments
+        if (this.pendingAttachments.size > 0) {
+            const providerProgress = {
+                completedTasks: completedTasks,
+                totalTasks: totalTasks,
+                percentage: overallProgress
+            };
+
+            if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
+                const filePath = currentTask.filePath;
+                this.ocrCache.set(filePath, currentTask.indicators);
+                this.pendingAttachments.delete(filePath);
+    
+                this.updateIncrementalResults();
+            } else if (currentTask && (currentTask.status === 'failed' || currentTask.status === 'cancelled')) {
+                this.pendingAttachments.delete(currentTask.filePath);
+            }
+
+            this.updateProgressStats();
+        }
         this.progressStats = {
             completedTasks: completedTasks,
             totalTasks: totalTasks,
@@ -149,12 +203,7 @@ export class OcrSidebar extends IndicatorSidebar {
      * Reset progress stats to initial state
      */
     private resetProgressStats(): void {
-        this.progressStats = {
-            completedTasks: 0,
-            totalTasks: 0,
-            percentage: 0
-        };
-        this.isBusy = false;
+        this.updateProgressStats();
     }
 
     /**
@@ -162,7 +211,6 @@ export class OcrSidebar extends IndicatorSidebar {
      */
     private cancelAndResetState(): void {
         if (this.ocrProvider) {
-            console.log("cancelling OCR operations and resetting state");
             this.ocrProvider.cancel();
         }
 
@@ -203,7 +251,7 @@ export class OcrSidebar extends IndicatorSidebar {
             return acc;
         }, [] as ParsedIndicators[]);
         
-        combinedIndicators = this.processExclusions(combinedIndicators);
+        combinedIndicators = processExclusions(combinedIndicators, this.plugin);
         this.ocrIocs = combinedIndicators;
     }
     
@@ -236,7 +284,6 @@ export class OcrSidebar extends IndicatorSidebar {
                         progress: this.progressStats
                     })
                 }
-                console.log("processing via OCR:", attachmentsToOcr);
                 const results = await this.ocrProvider?.processFiles(app, attachmentsToOcr);
             } else {
                 this.updateIncrementalResults();
