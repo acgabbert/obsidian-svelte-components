@@ -1,7 +1,6 @@
-import type { Worker } from "tesseract.js";
 import { IndicatorSidebar } from "./sidebar";
-import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, TesseractOcrProvider, EmptyOcrProvider, type OcrTask, processExclusions } from "obsidian-cyber-utils";
-import { TFile, type App, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import { getAttachments, type CyberPlugin, type ParsedIndicators, type OcrProvider, type OcrTask, processExclusions } from "obsidian-cyber-utils";
+import { TFile, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
 import OcrIocList from "../components/OcrIocList.svelte";
 
@@ -130,12 +129,6 @@ export class OcrSidebar extends IndicatorSidebar {
     private handleProgressUpdate(overallProgress: number, completedTasks: number, totalTasks: number, currentTask?: OcrTask): void {
         // Only update if we're processing attachments
         if (this.pendingAttachments.size > 0) {
-            const providerProgress = {
-                completedTasks: completedTasks,
-                totalTasks: totalTasks,
-                percentage: overallProgress
-            };
-
             if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
                 const filePath = currentTask.filePath;
                 this.ocrCache.set(filePath, currentTask.indicators);
@@ -268,7 +261,7 @@ export class OcrSidebar extends IndicatorSidebar {
                         progress: this.progressStats
                     })
                 }
-                const results = await this.ocrProvider?.processFiles(app, attachmentsToOcr);
+                await this.ocrProvider?.processFiles(app, attachmentsToOcr);
             } else {
                 this.updateIncrementalResults();
             }
@@ -379,7 +372,7 @@ export class OcrSidebar extends IndicatorSidebar {
      * Manually refresh the view
      */
     async refreshView() {
-        let file = this.app.workspace.getActiveFile();
+        const file = this.app.workspace.getActiveFile();
         if (file && file != this.currentFile) {
             this.currentFile = file;
             await this.parseIndicators(this.currentFile);

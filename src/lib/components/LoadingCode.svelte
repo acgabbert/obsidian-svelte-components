@@ -1,5 +1,5 @@
 <script lang="ts">
-    export let text: Promise<String>;
+    export let text: Promise<string>;
 </script>
 
 {#await text}

@@ -1,7 +1,6 @@
 import { ItemView, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import Sidebar from "../components/Sidebar.svelte";
-import { CyberPlugin, DOMAIN_REGEX, extractMatches, filterExclusions, getAttachments, HASH_REGEX, type IndicatorExclusion, IP_REGEX, IPv6_REGEX, isLocalIpv4, ocrMultiple, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
-import { type Worker } from "tesseract.js"
+import { CyberPlugin, DOMAIN_REGEX, extractMatches, filterExclusions, HASH_REGEX, type IndicatorExclusion, IP_REGEX, IPv6_REGEX, isLocalIpv4, type ParsedIndicators, refangIoc, removeArrayDuplicates, type SearchSite, validateDomains } from "obsidian-cyber-utils";
 
 export const DEFAULT_VIEW_TYPE = "indicator-sidebar";
 

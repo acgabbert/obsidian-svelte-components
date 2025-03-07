@@ -1,4 +1,4 @@
-import { App, Modal, Plugin } from "obsidian";
+import { Modal, Plugin } from "obsidian";
 import SettingCollection from "../components/SettingCollection.svelte";
 
 export { SettingCollectionModal };
@@ -51,7 +51,7 @@ class SettingCollectionModal extends Modal {
     }
 
     onOpen(): void {
-        let checkboxes = new SettingCollection({
+        const checkboxes = new SettingCollection({
             target: this.contentEl,
             props: {
                 items: this.settings,
