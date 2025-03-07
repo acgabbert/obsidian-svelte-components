@@ -2,62 +2,52 @@
     import type { ParsedIndicators } from "obsidian-cyber-utils";
     import IocList from "./IocList.svelte";
     import { slide } from "svelte/transition";
-    export let indicators: Promise<ParsedIndicators[]> | ParsedIndicators[];
-    export let isLoading: boolean = false;
-    export let progressStats: {total: number, completed: number} = {total: 0, completed: 0};
+    import type { ProgressStats } from "$lib/obsidian/ocrSidebar";
+    export let indicators: ParsedIndicators[] | null;
+    export let isBusy: boolean = false;
+    export let progress: ProgressStats = {
+        percentage: 0,
+        completedTasks: 0,
+        totalTasks: 0
+    }
     let isCollapsed = false;
     
     function toggleCollapse() {
         isCollapsed = !isCollapsed;
     }
-    
-    function hasIndicators(indicators: ParsedIndicators[]): boolean {
-        return indicators.some(indicator => indicator.items.length > 0);
-    }
+
+    $: hasIndicators = indicators?.some(list => list.items.length > 0);
 </script>
 
 <div class="ocr-indicators-container">
     <div class="collapsible">
         <button class="header-button" on:click={toggleCollapse} aria-expanded={!isCollapsed}>
             <span>{isCollapsed ? "+" : "-"}</span> OCR Indicators 
-            {#if isLoading}
+            {#if isBusy}
                 <span class="loading-indicator"></span>
-                {#if progressStats.total > 0}
-                    <span class="progress-text">({progressStats.completed}/{progressStats.total})</span>
-                {/if}
+                <span class="processing-indicator">{progress.completedTasks}/{progress.totalTasks}</span>
             {/if}
         </button>
-        
+        {#if isBusy}
+            <div class="progress-container">
+                <div class="progress-bar" style="width: {progress.percentage}%"></div>
+            </div>
+        {/if}
         {#if !isCollapsed}
             <div class="ocr-content-container">
-                {#if indicators instanceof Promise}
-                    {#await indicators}
-                        <p>Loading initial results...</p>
-                    {:then resolvedIndicators}
-                        {#if hasIndicators(resolvedIndicators)}
-                            <div class="ocr-content" transition:slide>
-                                {#each resolvedIndicators as indicatorList}
-                                    {#if indicatorList.items.length > 0}
-                                        <IocList {indicatorList}/>
-                                    {/if}
-                                {/each}
-                            </div>
-                        {:else}
-                            <i style="color: var(--text-muted);">No indicators found in attachment files.</i>
-                        {/if}
-                    {/await}
+                {#if hasIndicators && indicators}
+                    <div class="ocr-content" transition:slide>
+                        {#each indicators as indicatorList}
+                            {#if indicatorList.items.length > 0}
+                                <IocList {indicatorList}/>
+                            {/if}
+                        {/each}
+                    </div>
                 {:else}
-                    {#if hasIndicators(indicators)}
-                        <div class="ocr-content" transition:slide>
-                            {#each indicators as indicatorList}
-                                {#if indicatorList.items.length > 0}
-                                    <IocList {indicatorList}/>
-                                {/if}
-                            {/each}
-                        </div>
-                    {:else}
-                        <i style="color: var(--text-muted);">No indicators found in attachment files{#if isLoading} yet{/if}.</i>
-                    {/if}
+                    <i style="color: var(--text-muted);">{
+                        progress.totalTasks > 0 ? 
+                            'No indicators found in attachment files yet.'
+                            : 'No attachment files found for processing.'}</i>
                 {/if}
             </div>
         {/if}
@@ -86,6 +76,28 @@
         font-weight: var(--h4-weight);
         margin-bottom: 0.5rem;
     }
+
+    .processing-indicator {
+        font-size: var(--font-small);
+        color: var(--text-muted);
+        font-weight: normal;
+        margin-left: 8px;
+    }
+
+    .progress-container {
+        width: 100%;
+        height: 4px;
+        background-color: var(--background-modifier-border);
+        border-radius: 2px;
+        margin-bottom: 8px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background-color: var(--interactive-accent);
+        transition: width 0.3s ease;
+    }
     
     .loading-indicator {
         display: inline-block;
@@ -98,12 +110,6 @@
         animation: spin 1s linear infinite;
     }
     
-    .progress-text {
-        font-size: 0.8em;
-        margin-left: 5px;
-        opacity: 0.8;
-    }
-
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }

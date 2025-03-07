@@ -5,9 +5,12 @@
 	"author": "acgabbert",
 	"license": "MIT",
 	"scripts": {
-		"dev": "vite dev",
+		"dev": "npm run build:watch",
 		"build": "npm run package",
 		"preview": "vite preview",
+		"build:watch": "svelte-kit sync && svelte-package --watch",
+		"link": "npm update && npm link obsidian-cyber-utils && npm run build",
+		"link:watch": "npm update && npm link obsidian-cyber-utils && npm run build",
 		"package": "svelte-kit sync && svelte-package && publint",
 		"prepublishOnly": "npm run package",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

@@ -31,6 +31,8 @@ export class IndicatorSidebar extends ItemView {
     hashRegex = HASH_REGEX;
     domainRegex = DOMAIN_REGEX;
     ipv6Regex = IPv6_REGEX;
+
+    viewType: string = DEFAULT_VIEW_TYPE;
     
     constructor(leaf: WorkspaceLeaf, plugin: CyberPlugin, target?: HTMLElement) {
         super(leaf);
@@ -38,15 +40,29 @@ export class IndicatorSidebar extends ItemView {
         this.plugin = plugin;
         this.splitLocalIp = true;
         this.currentFile = null;
+
         this.plugin?.app.workspace.onLayoutReady(() => {
             this.registerActiveFileListener();
             this.registerOpenFile();
+
+            // Handle initial file - this fixes the blank sidebar on startup
+            const initialFile = this.app.workspace.getActiveFile();
+            if (initialFile) {
+                this.currentFile = initialFile;
+                this.parseIndicators(initialFile).catch(e => {
+                    console.error("Error processing initial file:", e);
+                });
+            }
         });
         if (target) this.sidebarTarget = target;
     }
 
     getViewType(): string {
-        return DEFAULT_VIEW_TYPE;
+        return this.viewType;
+    }
+
+    setViewType(viewType: string): void {
+        this.viewType = viewType;
     }
 
     getDisplayText(): string {
@@ -100,31 +116,31 @@ export class IndicatorSidebar extends ItemView {
             title: "IPs",
             items: extractMatches(fileContent, this.ipRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipExclusions ?? []
+            exclusions: this.ipExclusions ?? this.plugin?.exclusions?.ipv4Exclusions ?? []
         }
         const domains: ParsedIndicators = {
             title: "Domains",
             items: extractMatches(fileContent, this.domainRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.domain),
-            exclusions: this.domainExclusions ?? []
+            exclusions: this.domainExclusions ?? this.plugin?.exclusions?.domainExclusions ?? []
         }
         const hashes: ParsedIndicators = {
             title: "Hashes",
             items: extractMatches(fileContent, this.hashRegex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.hash),
-            exclusions: this.hashExclusions ?? []
+            exclusions: this.hashExclusions ?? this.plugin?.exclusions?.hashExclusions ?? []
         }
         const privateIps: ParsedIndicators = {
             title: "IPs (Private)",
             items: [],
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipExclusions ?? []
+            exclusions: this.ipExclusions ?? this.plugin?.exclusions?.ipv4Exclusions ?? []
         }
         const ipv6: ParsedIndicators = {
             title: "IPv6",
             items: extractMatches(fileContent, this.ipv6Regex),
             sites: this.plugin?.settings?.searchSites.filter((x: SearchSite) => x.enabled && x.ip),
-            exclusions: this.ipv6Exclusions ?? []
+            exclusions: this.ipv6Exclusions ?? this.plugin?.exclusions?.ipv6Exclusions ?? []
         }
         if (this.plugin?.validTld) 
             domains.items = validateDomains(domains.items, this.plugin.validTld);
