@@ -39,6 +39,9 @@ export class OcrSidebar extends IndicatorSidebar {
     }
 
     viewType: string = OCR_VIEW_TYPE;
+    
+    // Event handler references for cleanup
+    private eventHandlers: Map<string, (...args: any[]) => void> = new Map();
 
     constructor(
         leaf: WorkspaceLeaf,
@@ -48,12 +51,13 @@ export class OcrSidebar extends IndicatorSidebar {
         super(leaf, plugin);
         this.attachments = [];
         this.ocrIocs = null;
-        this.ocrProvider = ocrProvider;
+        this.ocrProvider = null;
         this.ocrCache = new Map<string, ParsedIndicators[]>();
         this.processingTasks = new Map<string, string>();
 
-        if (this.ocrProvider) {
-            this.ocrProvider.setProgressCallback(this.handleProgressUpdate.bind(this));
+        // Set up OCR provider if provided
+        if (ocrProvider) {
+            this.updateOcrProvider(ocrProvider);
         }
     }
 
@@ -124,56 +128,130 @@ export class OcrSidebar extends IndicatorSidebar {
     }
     
     /**
-     * Handle progress updates from the OCR provider
+     * Handle progress events from the OCR provider
      */
-    private handleProgressUpdate(overallProgress: number, completedTasks: number, totalTasks: number, currentTask?: OcrTask): void {
-        // Only update if we're processing attachments
-        if (this.pendingAttachments.size > 0) {
-            if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
-                const filePath = currentTask.filePath;
-                this.ocrCache.set(filePath, currentTask.indicators);
-                this.pendingAttachments.delete(filePath);
-    
-                this.updateIncrementalResults();
-            } else if (currentTask && (currentTask.status === 'failed' || currentTask.status === 'cancelled')) {
-                this.pendingAttachments.delete(currentTask.filePath);
-            }
-
-            this.updateProgressStats();
-        }
+    private handleProgressEvent(overallProgress: number, completedTasks: number, totalTasks: number, task?: OcrTask): void {
+        // Update progress stats
         this.progressStats = {
             completedTasks: completedTasks,
             totalTasks: totalTasks,
-            percentage: overallProgress
+            percentage: overallProgress * 100
         };
+        
         this.isBusy = completedTasks < totalTasks;
 
-        if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
-            const filePath = currentTask.filePath;
-            this.ocrCache.set(filePath, currentTask.indicators);
-            this.pendingAttachments.delete(filePath);
-
-            this.updateIncrementalResults();
-        } else if (currentTask && (currentTask.status === 'failed' || currentTask.status === 'cancelled')) {
-            this.pendingAttachments.delete(currentTask.filePath);
-        }
-
+        // Update the UI component
         if (this.ocrComponent) {
             this.ocrComponent.$set({
                 isBusy: this.isBusy,
                 progress: this.progressStats
             });
         }
+    }
 
-        if (currentTask && currentTask.status === 'completed' && currentTask.indicators) {
-            const filePath = currentTask.filePath;
-            this.ocrCache.set(filePath, currentTask.indicators);
-            if (this.ocrComponent && this.ocrIocs) {
-                this.ocrComponent?.$set({
-                    indicators: this.ocrIocs
-                });
-            }
+    /**
+     * Handle result events from the OCR provider
+     */
+    private handleResultEvent(filePath: string, indicators: ParsedIndicators[], providerId?: string): void {
+        // Store results in cache
+        this.ocrCache.set(filePath, indicators);
+        
+        // Remove from pending
+        this.pendingAttachments.delete(filePath);
+        
+        // Update the combined results
+        this.updateIncrementalResults();
+        
+        // Update UI with new results
+        if (this.ocrComponent && this.ocrIocs) {
+            this.ocrComponent.$set({
+                indicators: this.ocrIocs
+            });
         }
+        
+        // Update progress stats
+        this.updateProgressStats();
+    }
+
+    /**
+     * Handle task update events from the OCR provider
+     */
+    private handleTaskUpdateEvent(task: OcrTask, providerId?: string): void {
+        if (task.status === 'failed' || task.status === 'cancelled') {
+            // Remove failed tasks from pending
+            this.pendingAttachments.delete(task.filePath);
+            this.updateProgressStats();
+        }
+    }
+
+    /**
+     * Handle completion event from the OCR provider
+     */
+    private handleCompleteEvent(): void {
+        // Finalize progress
+        this.isBusy = false;
+        
+        if (this.ocrComponent) {
+            this.ocrComponent.$set({
+                isBusy: false,
+                progress: {
+                    completedTasks: this.attachments.length,
+                    totalTasks: this.attachments.length,
+                    percentage: 100
+                }
+            });
+        }
+    }
+
+    /**
+     * Handle error events from the OCR provider
+     */
+    private handleErrorEvent(error: Error, task?: OcrTask, providerId?: string): void {
+        console.error(`OCR Error${providerId ? ` from ${providerId}` : ''}:`, error);
+        
+        if (task) {
+            this.pendingAttachments.delete(task.filePath);
+            this.updateProgressStats();
+        }
+    }
+
+    /**
+     * Register event handlers for an OCR provider
+     */
+    private registerProviderEvents(provider: OcrProvider): void {
+        // Store handler references for later cleanup
+        const progressHandler = this.handleProgressEvent.bind(this);
+        const resultHandler = this.handleResultEvent.bind(this);
+        const taskUpdateHandler = this.handleTaskUpdateEvent.bind(this);
+        const completeHandler = this.handleCompleteEvent.bind(this);
+        const errorHandler = this.handleErrorEvent.bind(this);
+        
+        // Register event handlers
+        provider.on('progress', progressHandler);
+        provider.on('result', resultHandler);
+        provider.on('taskUpdate', taskUpdateHandler);
+        provider.on('complete', completeHandler);
+        provider.on('error', errorHandler);
+        
+        // Store handlers for cleanup
+        this.eventHandlers.set('progress', progressHandler);
+        this.eventHandlers.set('result', resultHandler);
+        this.eventHandlers.set('taskUpdate', taskUpdateHandler);
+        this.eventHandlers.set('complete', completeHandler);
+        this.eventHandlers.set('error', errorHandler);
+    }
+
+    /**
+     * Unregister event handlers from an OCR provider
+     */
+    private unregisterProviderEvents(provider: OcrProvider): void {
+        // Remove each handler
+        for (const [event, handler] of this.eventHandlers.entries()) {
+            provider.off(event as any, handler);
+        }
+        
+        // Clear handler references
+        this.eventHandlers.clear();
     }
 
     /**
@@ -249,38 +327,43 @@ export class OcrSidebar extends IndicatorSidebar {
             this.updateIncrementalResults();
 
             if (attachmentsToOcr.length > 0) {
+                // Mark attachments as pending
                 attachmentsToOcr.forEach(att => this.pendingAttachments.add(att));
+                
+                // Initial progress state
                 this.progressStats = {
                     completedTasks: 0,
                     totalTasks: attachmentsToOcr.length,
                     percentage: 0
                 };
+                
                 if (this.ocrComponent) {
                     this.ocrComponent.$set({
                         isBusy: this.isBusy,
                         progress: this.progressStats
-                    })
+                    });
                 }
-                await this.ocrProvider?.processFiles(app, attachmentsToOcr);
+                
+                // Start processing - events will handle updates
+                await this.ocrProvider.processFiles(app, attachmentsToOcr);
             } else {
                 this.updateIncrementalResults();
+                this.isBusy = false;
+                
+                if (this.ocrComponent) {
+                    this.ocrComponent.$set({
+                        isBusy: false
+                    });
+                }
             }
         } catch (e) {
             console.error("Error during OCR processing:", e);
-        } finally {
-            if (this.pendingAttachments.size === 0) {
-                this.progressStats = {
-                    percentage: 100,
-                    totalTasks: 0,
-                    completedTasks: 0
-                }
-                this.isBusy = false;
-                if (this.ocrComponent) {
-                    this.ocrComponent.$set({
-                        isBusy: false,
-                        progress: this.progressStats
-                    })
-                }
+            this.isBusy = false;
+            
+            if (this.ocrComponent) {
+                this.ocrComponent.$set({
+                    isBusy: false
+                });
             }
         }
     }
@@ -350,19 +433,23 @@ export class OcrSidebar extends IndicatorSidebar {
      * @param ocrProvider the new OCR provider to use
      */
     async updateOcrProvider(provider: OcrProvider): Promise<void> {
-        // Cancel any ongoing OCR operations
+        // Unregister event handlers from previous provider
         if (this.ocrProvider) {
-            this.ocrProvider.setProgressCallback(() => null);
+            this.unregisterProviderEvents(this.ocrProvider);
+            this.ocrProvider.cancel();
         }
         
         this.cancelAndResetState();
 
+        // Set the new provider
         this.ocrProvider = provider;
 
+        // Register event handlers with the new provider
         if (this.ocrProvider) {
-            this.ocrProvider.setProgressCallback(this.handleProgressUpdate.bind(this));
+            this.registerProviderEvents(this.ocrProvider);
         }
 
+        // Process current file if available
         if (this.currentFile) {
             await this.parseIndicators(this.currentFile);
         }
@@ -380,7 +467,9 @@ export class OcrSidebar extends IndicatorSidebar {
     }
 
     async onClose() {
+        // Clean up event listeners
         if (this.ocrProvider) {
+            this.unregisterProviderEvents(this.ocrProvider);
             this.ocrProvider.cancel();
             this.pendingAttachments.clear();
         }
