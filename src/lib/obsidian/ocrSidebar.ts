@@ -153,6 +153,14 @@ export class OcrSidebar extends IndicatorSidebar {
      * Handle result events from the OCR provider
      */
     private handleResultEvent(filePath: string, indicators: ParsedIndicators[], providerId?: string): void {
+        console.log(`Result event for ${filePath} from ${providerId || 'unknown provider'}`);
+        
+        // Check if we're actually expecting results for this file
+        if (!this.pendingAttachments.has(filePath)) {
+            console.log(`Ignoring duplicate result for ${filePath}`);
+            return;
+        }
+        
         // Store results in cache
         this.ocrCache.set(filePath, indicators);
         
@@ -312,22 +320,26 @@ export class OcrSidebar extends IndicatorSidebar {
     
     async getOcrMatches(): Promise<void> {
         const app = this.plugin?.app;
-
+    
         if (!app || !this.plugin || !this.ocrProvider || !this.ocrProvider.isReady()) {
             return;
         }
-
+    
         try {
-            this.isBusy = true;
+            // Only consider attachments that are:
+            // 1. Not already in the cache
+            // 2. Not already being processed
             const attachmentsToOcr = this.attachments.filter(att =>
                 !this.ocrCache.has(att) && !this.pendingAttachments.has(att)
             );
-
+    
             // update results for any files already in the cache
             this.updateIncrementalResults();
-
+    
             if (attachmentsToOcr.length > 0) {
-                // Mark attachments as pending
+                this.isBusy = true;
+                
+                // Mark attachments as pending BEFORE starting processing
                 attachmentsToOcr.forEach(att => this.pendingAttachments.add(att));
                 
                 // Initial progress state
